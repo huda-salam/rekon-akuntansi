@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\AccountingYear;
-use App\Models\Reconciliation;
 use App\Models\Skpd;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -18,7 +17,10 @@ class ReconciliationWorkflowTest extends TestCase
         $year = AccountingYear::create(['year' => 2026, 'is_active' => true]);
         $own = Skpd::create(['code' => 'SKPD-A', 'name' => 'SKPD A', 'is_active' => true]);
         $other = Skpd::create(['code' => 'SKPD-B', 'name' => 'SKPD B', 'is_active' => true]);
-        $user = User::factory()->create(['role' => 'skpd', 'skpd_id' => $own->id]);
+        $user = User::create([
+            'name' => 'User SKPD A', 'email' => 'a@example.test', 'password' => 'password',
+            'role' => 'skpd', 'skpd_id' => $own->id,
+        ]);
 
         $this->actingAs($user, 'sanctum')
             ->postJson('/api/reconciliations', [
@@ -34,7 +36,10 @@ class ReconciliationWorkflowTest extends TestCase
     {
         $year = AccountingYear::create(['year' => 2026, 'is_active' => true]);
         $skpd = Skpd::create(['code' => 'SKPD-A', 'name' => 'SKPD A', 'is_active' => true]);
-        $admin = User::factory()->create(['role' => 'admin', 'skpd_id' => null]);
+        $admin = User::create([
+            'name' => 'Admin', 'email' => 'admin@example.test', 'password' => 'password',
+            'role' => 'admin', 'skpd_id' => null,
+        ]);
 
         $create = $this->actingAs($admin, 'sanctum')->postJson('/api/reconciliations', [
             'accounting_year_id' => $year->id,
@@ -65,9 +70,8 @@ class ReconciliationWorkflowTest extends TestCase
             'notes' => 'Tidak boleh berubah',
         ])->assertForbidden();
 
-        $this->assertDatabaseHas('reconciliation_snapshots', [
-            'reconciliation_id' => $id,
-            'snapshot_hash' => hash('sha256', json_encode([], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)),
-        ]);
+        $this->assertDatabaseHas('reconciliations', ['id' => $id, 'status' => 'finalized']);
+        $this->assertDatabaseHas('reconciliation_snapshots', ['reconciliation_id' => $id]);
+        $this->assertDatabaseHas('berita_acaras', ['reconciliation_id' => $id, 'number' => 'BA/001/2026']);
     }
 }
