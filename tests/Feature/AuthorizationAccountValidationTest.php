@@ -7,7 +7,6 @@ use App\Models\MasterReference;
 use App\Models\Skpd;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class AuthorizationAccountValidationTest extends TestCase
@@ -16,10 +15,7 @@ class AuthorizationAccountValidationTest extends TestCase
 
     private function activeYear(): AccountingYear
     {
-        $year = AccountingYear::create(['year' => 2026, 'is_active' => false]);
-        DB::table('accounting_years')->whereKey($year->id)->update(['is_active' => 1]);
-
-        return $year->fresh();
+        return AccountingYear::create(['year' => 2026, 'is_active' => true]);
     }
 
     public function test_account_code_must_exist_in_year_master_and_type(): void
