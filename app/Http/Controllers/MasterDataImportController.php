@@ -14,10 +14,10 @@ class MasterDataImportController extends Controller
 
         $validated = $request->validate([
             'file' => ['required', 'file', 'mimes:xlsx,xls', 'max:10240'],
-            'source_year' => ['nullable', 'integer', 'between:2000,2100'],
+            'source_year' => ['required', 'integer', 'between:2000,2100'],
         ]);
 
-        $result = $service->execute($validated['file'], $validated['source_year'] ?? null);
+        $result = $service->execute($validated['file'], $validated['source_year']);
 
         return response()->json([
             'message' => 'Master data berhasil diimpor.',
