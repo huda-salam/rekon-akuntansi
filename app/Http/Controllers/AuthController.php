@@ -22,6 +22,10 @@ class AuthController extends Controller
             return response()->json(['message' => 'Email atau password tidak valid.'], 422);
         }
 
+        if (!$user->is_active) {
+            return response()->json(['message' => 'Pengguna tidak aktif.'], 403);
+        }
+
         if ($user->skpd_id !== null && !$user->skpd?->is_active) {
             return response()->json(['message' => 'SKPD pengguna tidak aktif.'], 403);
         }
