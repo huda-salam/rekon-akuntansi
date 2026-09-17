@@ -11,12 +11,13 @@ class User extends Authenticatable
 {
     use HasApiTokens, Notifiable;
 
-    protected $fillable = ['name', 'email', 'password', 'role', 'skpd_id'];
+    protected $fillable = ['name', 'email', 'password', 'role', 'skpd_id', 'is_active'];
 
     protected $hidden = ['password', 'remember_token'];
 
     protected $casts = [
         'password' => 'hashed',
+        'is_active' => 'boolean',
     ];
 
     public function skpd(): BelongsTo
