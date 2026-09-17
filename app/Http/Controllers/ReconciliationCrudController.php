@@ -7,12 +7,13 @@ use App\Models\Reconciliation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 
 class ReconciliationCrudController extends Controller
 {
     public function store(Request $request): JsonResponse
     {
+        abort_unless($request->user()->isAdmin(), 403);
+
         $data = $request->validate([
             'accounting_year_id' => ['required', 'exists:accounting_years,id'],
             'skpd_id' => ['required', 'exists:skpds,id'],
@@ -30,16 +31,9 @@ class ReconciliationCrudController extends Controller
             'details.*.match_payload' => ['nullable', 'array'],
         ]);
 
-        $user = $request->user();
-        if (!$user->isAdmin() && (int) $data['skpd_id'] !== (int) $user->skpd_id) {
-            abort(403, 'SKPD di luar kewenangan pengguna.');
-        }
-
-        $year = AccountingYear::findOrFail($data['accounting_year_id']);
-
-        $reconciliation = DB::transaction(function () use ($data, $year) {
+        $reconciliation = DB::transaction(function () use ($data) {
             $reconciliation = Reconciliation::create([
-                'accounting_year_id' => $year->id,
+                'accounting_year_id' => $data['accounting_year_id'],
                 'skpd_id' => $data['skpd_id'],
                 'status' => 'draft',
                 'period_start' => $data['period_start'] ?? null,
@@ -68,6 +62,7 @@ class ReconciliationCrudController extends Controller
 
     public function update(Request $request, Reconciliation $reconciliation): JsonResponse
     {
+        abort_unless($request->user()->isAdmin(), 403);
         $this->authorize('update', $reconciliation);
 
         $data = $request->validate([
@@ -75,7 +70,6 @@ class ReconciliationCrudController extends Controller
             'period_end' => ['nullable', 'date', 'after_or_equal:period_start'],
             'notes' => ['nullable', 'string'],
             'details' => ['sometimes', 'array'],
-            'details.*.id' => ['nullable', 'integer'],
             'details.*.source_type' => ['required_with:details', 'string', 'max:40'],
             'details.*.source_id' => ['nullable', 'integer'],
             'details.*.match_status' => ['sometimes', 'string', 'max:30'],
