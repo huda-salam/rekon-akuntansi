@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Reconciliation extends Model
 {
@@ -39,13 +40,13 @@ class Reconciliation extends Model
         return $this->hasMany(ReconciliationDetail::class);
     }
 
-    public function snapshot(): ?ReconciliationSnapshot
+    public function snapshot(): HasOne
     {
-        return $this->hasOne(ReconciliationSnapshot::class)->first();
+        return $this->hasOne(ReconciliationSnapshot::class);
     }
 
-    public function beritaAcara(): ?BeritaAcara
+    public function beritaAcara(): HasOne
     {
-        return $this->hasOne(BeritaAcara::class)->first();
+        return $this->hasOne(BeritaAcara::class);
     }
 }
