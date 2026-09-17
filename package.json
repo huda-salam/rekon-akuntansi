@@ -1,9 +1,13 @@
 {
   "private": true,
   "type": "module",
-  "scripts": {"dev": "vite", "build": "vite build"},
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
+    "laravel-vite-plugin": "^3.2.0",
     "vite": "latest",
     "react": "latest",
     "react-dom": "latest",
