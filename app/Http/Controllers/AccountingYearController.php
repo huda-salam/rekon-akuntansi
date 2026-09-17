@@ -17,13 +17,13 @@ class AccountingYearController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'year' => ['required','integer','min:2000','max:2100','unique:accounting_years,year'],
-            'active' => ['sometimes','boolean'],
+            'year' => ['required', 'integer', 'min:2000', 'max:2100', 'unique:accounting_years,year'],
+            'is_active' => ['sometimes', 'boolean'],
         ]);
 
         $year = DB::transaction(function () use ($data) {
-            if (!empty($data['active'])) {
-                AccountingYear::query()->update(['active' => false]);
+            if (!empty($data['is_active'])) {
+                AccountingYear::query()->update(['is_active' => false]);
             }
             return AccountingYear::create($data);
         });
@@ -34,9 +34,10 @@ class AccountingYearController extends Controller
     public function activate(AccountingYear $accountingYear): JsonResponse
     {
         DB::transaction(function () use ($accountingYear) {
-            AccountingYear::query()->update(['active' => false]);
-            $accountingYear->update(['active' => true]);
+            AccountingYear::query()->update(['is_active' => false]);
+            $accountingYear->update(['is_active' => true]);
         });
+
         return response()->json($accountingYear->fresh());
     }
 }
