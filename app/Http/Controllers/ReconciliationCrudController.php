@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AccountingYear;
 use App\Models\Reconciliation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -12,7 +11,7 @@ class ReconciliationCrudController extends Controller
 {
     public function store(Request $request): JsonResponse
     {
-        abort_unless($request->user()->isAdmin(), 403);
+        $this->authorize('create', Reconciliation::class);
 
         $data = $request->validate([
             'accounting_year_id' => ['required', 'exists:accounting_years,id'],
@@ -62,7 +61,6 @@ class ReconciliationCrudController extends Controller
 
     public function update(Request $request, Reconciliation $reconciliation): JsonResponse
     {
-        abort_unless($request->user()->isAdmin(), 403);
         $this->authorize('update', $reconciliation);
 
         $data = $request->validate([
