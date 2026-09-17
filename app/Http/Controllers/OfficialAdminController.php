@@ -18,9 +18,7 @@ class OfficialAdminController extends Controller
     {
         $this->authorizeAdmin();
 
-        $query = Official::query()
-            ->with('skpd:id,code,name')
-            ->orderBy('name');
+        $query = Official::query()->with('skpd:id,code,name')->orderBy('name');
 
         if ($request->filled('skpd_id')) {
             $query->where('skpd_id', $request->integer('skpd_id'));
@@ -34,7 +32,7 @@ class OfficialAdminController extends Controller
         $this->authorizeAdmin();
 
         $data = $request->validate([
-            'skpd_id' => ['required', 'integer', 'exists:skpds,id'],
+            'skpd_id' => ['required', 'integer', Rule::exists('skpds', 'id')->where(fn ($query) => $query->where('is_active', true))],
             'name' => ['required', 'string', 'max:255'],
             'nip' => ['nullable', 'string', 'max:30'],
             'position' => ['required', 'string', 'max:255'],
@@ -49,7 +47,7 @@ class OfficialAdminController extends Controller
         $this->authorizeAdmin();
 
         $data = $request->validate([
-            'skpd_id' => ['sometimes', 'required', 'integer', 'exists:skpds,id'],
+            'skpd_id' => ['sometimes', 'required', 'integer', Rule::exists('skpds', 'id')->where(fn ($query) => $query->where('is_active', true))],
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'nip' => ['sometimes', 'nullable', 'string', 'max:30'],
             'position' => ['sometimes', 'required', 'string', 'max:255'],
