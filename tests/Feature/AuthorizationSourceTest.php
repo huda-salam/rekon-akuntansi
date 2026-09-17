@@ -15,8 +15,8 @@ class AuthorizationSourceTest extends TestCase
 
     private function activeYear(): AccountingYear
     {
-        $year = AccountingYear::create(['year' => 2026, 'is_active' => true]);
-        DB::table('accounting_years')->whereKey($year->id)->update(['is_active' => 1]);
+        $year = AccountingYear::create(['year' => 2026, 'is_active' => false]);
+        DB::statement('UPDATE accounting_years SET is_active = 1 WHERE id = ?', [$year->id]);
         return $year->fresh();
     }
 
