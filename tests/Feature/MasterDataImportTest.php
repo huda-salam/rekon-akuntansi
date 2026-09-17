@@ -16,7 +16,7 @@ class MasterDataImportTest extends TestCase
 
     private function mockImport(Collection $rows): void
     {
-        $excel = Excel::getFacadeRoot();
+        $excel = app(\Maatwebsite\Excel\Excel::class);
         Excel::shouldReceive('import')
             ->once()
             ->andReturnUsing(function ($import) use ($rows, $excel) {
