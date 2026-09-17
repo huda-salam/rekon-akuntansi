@@ -6,6 +6,7 @@ use App\Models\Reconciliation;
 use App\Services\FinalizeReconciliationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class ReconciliationController extends Controller
 {
@@ -40,7 +41,7 @@ class ReconciliationController extends Controller
         $this->authorize('finalize', $reconciliation);
 
         $validated = $request->validate([
-            'number' => ['required', 'string', 'max:150'],
+            'number' => ['required', 'string', 'max:150', Rule::unique('berita_acaras', 'number')],
             'date' => ['required', 'date'],
             'signatory_official_name' => ['required', 'string', 'max:255'],
             'signatory_official_nip' => ['nullable', 'string', 'max:30'],
