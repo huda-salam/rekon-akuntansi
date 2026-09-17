@@ -9,8 +9,10 @@ use Illuminate\Support\Facades\DB;
 
 class AccountingYearAdminController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
+        abort_unless($request->user()->isAdmin(), 403);
+
         return response()->json(AccountingYear::orderByDesc('year')->get());
     }
 
@@ -24,10 +26,17 @@ class AccountingYearAdminController extends Controller
         ]);
 
         $year = DB::transaction(function () use ($data) {
-            if (!empty($data['is_active'])) {
+            $hasActive = AccountingYear::query()->where('is_active', true)->exists();
+            $makeActive = ! $hasActive || ! empty($data['is_active']);
+
+            if ($makeActive) {
                 AccountingYear::query()->update(['is_active' => false]);
             }
-            return AccountingYear::create($data);
+
+            return AccountingYear::create([
+                'year' => $data['year'],
+                'is_active' => $makeActive,
+            ]);
         });
 
         return response()->json($year, 201);
