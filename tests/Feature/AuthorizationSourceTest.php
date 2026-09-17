@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\AccountingYear;
+use App\Models\MasterReference;
 use App\Models\Skpd;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -61,5 +62,47 @@ class AuthorizationSourceTest extends TestCase
         ])->assertCreated();
 
         $response->assertJsonPath('total_amount', '100000.00');
+    }
+
+    public function test_admin_rejects_account_not_in_year_master(): void
+    {
+        $year = $this->activeYear();
+        $skpd = Skpd::create(['code' => 'SKPD-A', 'name' => 'SKPD A', 'is_active' => true]);
+        $admin = User::create(['name' => 'Admin', 'email' => 'admin@example.test', 'password' => 'password', 'role' => 'admin', 'skpd_id' => null]);
+
+        $this->actingAs($admin, 'sanctum')->postJson('/api/authorizations', [
+            'accounting_year_id' => $year->id,
+            'skpd_id' => $skpd->id,
+            'type' => 'pendapatan',
+            'details' => [['account_code' => '4.99.99.99', 'account_name' => 'Palsu', 'amount' => 100000]],
+        ])->assertUnprocessable()->assertJsonValidationErrors('details.0.account_code');
+    }
+
+    public function test_admin_canonicalizes_account_name_from_year_master(): void
+    {
+        $year = $this->activeYear();
+        $skpd = Skpd::create(['code' => 'SKPD-A', 'name' => 'SKPD A', 'is_active' => true]);
+        $admin = User::create(['name' => 'Admin', 'email' => 'admin@example.test', 'password' => 'password', 'role' => 'admin', 'skpd_id' => null]);
+        MasterReference::create([
+            'year' => $year->year,
+            'code' => '4.1.01',
+            'description' => 'Pendapatan Pajak Daerah',
+            'type' => 'rekening_pendapatan',
+            'is_active' => true,
+        ]);
+
+        $response = $this->actingAs($admin, 'sanctum')->postJson('/api/authorizations', [
+            'accounting_year_id' => $year->id,
+            'skpd_id' => $skpd->id,
+            'type' => 'pendapatan',
+            'details' => [[
+                'account_code' => '4.1.01',
+                'account_name' => 'Nama yang dikirim client',
+                'amount' => 100000,
+            ]],
+        ])->assertCreated();
+
+        $response->assertJsonPath('details.0.account_code', '4.1.01')
+            ->assertJsonPath('details.0.account_name', 'Pendapatan Pajak Daerah');
     }
 }
