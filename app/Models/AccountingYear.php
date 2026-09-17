@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class AccountingYear extends Model
 {
@@ -12,4 +13,9 @@ class AccountingYear extends Model
         'year' => 'integer',
         'is_active' => 'boolean',
     ];
+
+    public function reconciliations(): HasMany
+    {
+        return $this->hasMany(Reconciliation::class);
+    }
 }
