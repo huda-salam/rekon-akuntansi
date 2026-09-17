@@ -6,14 +6,17 @@ use App\Models\AuthorizationRecord;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class AuthorizationSourceController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = AuthorizationRecord::query()->with('details')->latest();
+        $query = AuthorizationRecord::query()
+            ->with(['details', 'accountingYear', 'skpd'])
+            ->latest();
 
-        if (!$request->user()->isAdmin()) {
+        if (! $request->user()->isAdmin()) {
             $query->where('skpd_id', $request->user()->skpd_id);
         }
 
@@ -22,6 +25,11 @@ class AuthorizationSourceController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $user = $request->user();
+        if (! $user->isAdmin()) {
+            abort(403, 'Input sumber pengesahan hanya dapat dilakukan oleh Admin/SKPKD.');
+        }
+
         $data = $request->validate([
             'skpd_id' => ['required', 'exists:skpds,id'],
             'accounting_year_id' => ['required', 'exists:accounting_years,id'],
@@ -41,10 +49,7 @@ class AuthorizationSourceController extends Controller
             'details.*.source_payload' => ['nullable', 'array'],
         ]);
 
-        $user = $request->user();
-        if (!$user->isAdmin() && (int) $data['skpd_id'] !== (int) $user->skpd_id) {
-            abort(403, 'SKPD di luar kewenangan pengguna.');
-        }
+        $this->assertActiveYearAndSkpd($data['accounting_year_id'], $data['skpd_id']);
 
         $record = DB::transaction(function () use ($data) {
             $details = $data['details'];
@@ -58,6 +63,21 @@ class AuthorizationSourceController extends Controller
             return $record;
         });
 
-        return response()->json($record->load('details'), 201);
+        return response()->json($record->load(['details', 'accountingYear', 'skpd']), 201);
+    }
+
+    private function assertActiveYearAndSkpd(int $yearId, int $skpdId): void
+    {
+        if (! DB::table('accounting_years')->whereKey($yearId)->where('is_active', true)->exists()) {
+            throw ValidationException::withMessages([
+                'accounting_year_id' => 'Sumber pengesahan baru hanya dapat dicatat pada tahun anggaran aktif.',
+            ]);
+        }
+
+        if (! DB::table('skpds')->whereKey($skpdId)->where('is_active', true)->exists()) {
+            throw ValidationException::withMessages([
+                'skpd_id' => 'SKPD tidak aktif atau tidak ditemukan.',
+            ]);
+        }
     }
 }
