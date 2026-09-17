@@ -5,6 +5,7 @@ use App\Http\Controllers\AccountingYearController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\AuthorizationSourceController;
 use App\Http\Controllers\HealthController;
+use App\Http\Controllers\MasterDataImportController;
 use App\Http\Controllers\OfficialAdminController;
 use App\Http\Controllers\ReconciliationController;
 use App\Http\Controllers\ReconciliationCrudController;
@@ -27,6 +28,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('/skpds', SkpdAdminController::class)->only(['index', 'store', 'update']);
     Route::apiResource('/users', UserAdminController::class)->only(['index', 'store', 'update']);
     Route::apiResource('/officials', OfficialAdminController::class)->only(['index', 'store', 'update']);
+    Route::post('/master-data/import', [MasterDataImportController::class, 'store']);
 
     Route::get('/authorizations', [AuthorizationSourceController::class, 'index']);
     Route::post('/authorizations', [AuthorizationSourceController::class, 'store']);
