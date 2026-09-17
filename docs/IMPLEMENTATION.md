@@ -25,7 +25,7 @@
 - `reconciliation_snapshots`: immutable finalized snapshot header
 - `reconciliation_snapshot_details`: immutable finalized snapshot details
 - `berita_acaras`: BA metadata and links to the frozen snapshot
-- `master_references`: imported hierarchical reference data from the master Excel file
+- `master_references`: imported hierarchical reference data from the master Excel file, versioned by year
 
 ## Master Excel import
 
@@ -43,17 +43,23 @@ Expected sheet structure:
 
 The supplied 2026 workbook uses one sheet named `ref` with these columns. Its data contains 3,630 rows across 8 master types, including 96 SKPD rows.
 
+Each import must specify its **master year**. The year is stored in `master_references.year` and is part of the natural key together with `type` and `code`. Therefore, the same code may legitimately exist in multiple years:
+
+- `(2025, bidang, 1.01)` and `(2026, bidang, 1.01)` are different master records.
+- Re-importing `(2026, bidang, 1.01)` updates the 2026 record rather than creating a duplicate.
+- The year must not be inferred from the upload filename; it is an explicit import parameter.
+
 Import behavior is deliberately **upsert**, not destructive synchronization:
 
-- Existing records are updated using `(jenis, kode)` as the natural key.
+- Existing records are updated using `(year, jenis, kode)` as the natural key.
 - New records are inserted.
-- Imported rows are stored in `master_references` so the original hierarchy and master type are retained.
-- Rows with `jenis = skpd` are also synchronized into the operational `skpds` table by `code`.
+- Imported rows are stored in `master_references` so the original hierarchy, master type, and year are retained.
+- Rows with `jenis = skpd` are also synchronized into the operational `skpds` table by `code`. The operational SKPD table remains the current identity/scope table; the year-specific historical master remains in `master_references`.
 - Rows missing required fields, using an unknown `jenis`, or duplicated within the same `(jenis, kode)` import are rejected before database writes.
 - The database write is transactional; a validation failure does not partially import the workbook.
 - Import does not deactivate or delete records that are absent from a later workbook. This avoids destructive changes when a source workbook is incomplete or represents only part of a master set.
 
-The import endpoint accepts `.xlsx` and `.xls` files up to 10 MB and optionally records the source year.
+The import endpoint accepts `.xlsx` and `.xls` files up to 10 MB. The year parameter is required and must be between 2000 and 2100.
 
 ## Important constraint
 
