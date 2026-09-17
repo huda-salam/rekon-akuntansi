@@ -9,7 +9,7 @@ class Skpd extends Model
 {
     protected $table = 'skpds';
 
-    protected $fillable = ['code', 'name', 'is_active'];
+    protected $fillable = ['code', 'name', 'parent_code', 'is_active'];
 
     protected $casts = ['is_active' => 'boolean'];
 
