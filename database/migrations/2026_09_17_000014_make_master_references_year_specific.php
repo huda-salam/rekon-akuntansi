@@ -16,7 +16,6 @@ return new class extends Migration {
         });
 
         Schema::table('master_references', function (Blueprint $table) {
-            $table->unsignedSmallInteger('year')->nullable(false)->change();
             $table->unique(['year', 'type', 'code']);
             $table->index(['year', 'type', 'parent_code']);
         });
@@ -31,7 +30,6 @@ return new class extends Migration {
 
         Schema::table('master_references', function (Blueprint $table) {
             $table->renameColumn('year', 'source_year');
-            $table->unsignedSmallInteger('source_year')->nullable()->change();
             $table->unique(['type', 'code']);
         });
     }
