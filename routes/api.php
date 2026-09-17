@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccountingYearAdminController;
+use App\Http\Controllers\AccountingYearController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\AuthorizationSourceController;
 use App\Http\Controllers\HealthController;
@@ -16,7 +17,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
 
-    Route::get('/years', [AccountingYearAdminController::class, 'index']);
+    // Active year is readable by all authenticated users; mutations are admin-only.
+    Route::get('/years', [AccountingYearController::class, 'index']);
     Route::post('/years', [AccountingYearAdminController::class, 'store']);
     Route::post('/years/{accountingYear}/activate', [AccountingYearAdminController::class, 'activate']);
 
