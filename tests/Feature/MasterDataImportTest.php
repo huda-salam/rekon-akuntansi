@@ -21,7 +21,7 @@ class MasterDataImportTest extends TestCase
             ->andReturnUsing(function ($import) use ($rows) {
                 $import->rows = $rows;
 
-                return app(\Maatwebsite\Excel\Excel::class);
+                return Excel::getFacadeRoot();
             });
     }
 
