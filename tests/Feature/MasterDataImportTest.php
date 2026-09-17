@@ -16,12 +16,12 @@ class MasterDataImportTest extends TestCase
 
     private function mockImport(Collection $rows): void
     {
-        $excel = app(\Maatwebsite\Excel\Excel::class);
         Excel::shouldReceive('import')
             ->once()
-            ->andReturnUsing(function ($import) use ($rows, $excel) {
+            ->andReturnUsing(function ($import) use ($rows) {
                 $import->rows = $rows;
-                return $excel;
+
+                return app(\Maatwebsite\Excel\Excel::class);
             });
     }
 
