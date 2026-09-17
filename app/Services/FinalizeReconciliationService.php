@@ -23,6 +23,7 @@ class FinalizeReconciliationService
                 throw new RuntimeException('Status rekonsiliasi tidak dapat difinalisasi.');
             }
 
+            $finalizedAt = now();
             $snapshotData = [
                 'reconciliation_id' => $reconciliation->id,
                 'accounting_year' => $reconciliation->accountingYear->year,
@@ -31,7 +32,7 @@ class FinalizeReconciliationService
                 'period_start' => $reconciliation->period_start?->toDateString(),
                 'period_end' => $reconciliation->period_end?->toDateString(),
                 'notes' => $reconciliation->notes,
-                'finalized_at' => now()->toIso8601String(),
+                'finalized_at' => $finalizedAt->toIso8601String(),
                 'ba_number' => $ba['number'],
                 'ba_date' => $ba['date'],
                 'signatory' => [
@@ -62,7 +63,7 @@ class FinalizeReconciliationService
                 'period_start' => $reconciliation->period_start,
                 'period_end' => $reconciliation->period_end,
                 'notes' => $reconciliation->notes,
-                'finalized_at' => now(),
+                'finalized_at' => $finalizedAt,
                 'snapshot_hash' => hash('sha256', $json),
                 'snapshot_payload' => $snapshotData,
             ]);
@@ -82,7 +83,7 @@ class FinalizeReconciliationService
 
             $reconciliation->update([
                 'status' => 'finalized',
-                'finalized_at' => now(),
+                'finalized_at' => $finalizedAt,
             ]);
 
             return BeritaAcara::create([
