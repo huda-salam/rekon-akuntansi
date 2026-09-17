@@ -4,16 +4,16 @@
   "description": "Aplikasi rekonsiliasi akuntansi pemerintah daerah.",
   "require": {
     "php": "^8.3",
-    "laravel/framework": "^11.0",
-    "laravel/sanctum": "^4.0",
-    "barryvdh/laravel-dompdf": "^2.1",
-    "maatwebsite/excel": "^3.1"
+    "laravel/framework": "^12.60.0",
+    "laravel/sanctum": "^4.3",
+    "barryvdh/laravel-dompdf": "^3.1",
+    "maatwebsite/excel": "^4.0"
   },
   "require-dev": {
     "fakerphp/faker": "^1.23",
-    "laravel/pint": "^1.13",
+    "laravel/pint": "^1.29",
     "mockery/mockery": "^1.6",
-    "nunomaduro/collision": "^8.1",
+    "nunomaduro/collision": "^8.6",
     "phpunit/phpunit": "^11.0"
   },
   "autoload": {
