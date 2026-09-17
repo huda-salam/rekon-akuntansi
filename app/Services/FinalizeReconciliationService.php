@@ -19,8 +19,12 @@ class FinalizeReconciliationService
                 throw new RuntimeException('Rekonsiliasi sudah difinalisasi dan tidak dapat diubah.');
             }
 
-            if (! in_array($reconciliation->status, ['draft', 'in_review'], true)) {
-                throw new RuntimeException('Status rekonsiliasi tidak dapat difinalisasi.');
+            if ($reconciliation->status !== 'in_review') {
+                throw new RuntimeException('Rekonsiliasi harus berada pada status in_review sebelum difinalisasi.');
+            }
+
+            if ($reconciliation->details->isEmpty()) {
+                throw new RuntimeException('Rekonsiliasi tidak dapat difinalisasi tanpa detail pencocokan.');
             }
 
             $finalizedAt = now();
