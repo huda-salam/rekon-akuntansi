@@ -17,10 +17,14 @@ class ReconciliationPolicy
         return $user->isAdmin() || $user->skpd_id === $reconciliation->skpd_id;
     }
 
+    public function create(User $user): bool
+    {
+        return $user->isAdmin();
+    }
+
     public function update(User $user, Reconciliation $reconciliation): bool
     {
-        return $reconciliation->status !== 'finalized'
-            && ($user->isAdmin() || $user->skpd_id === $reconciliation->skpd_id);
+        return $reconciliation->status !== 'finalized' && $user->isAdmin();
     }
 
     public function finalize(User $user, Reconciliation $reconciliation): bool
