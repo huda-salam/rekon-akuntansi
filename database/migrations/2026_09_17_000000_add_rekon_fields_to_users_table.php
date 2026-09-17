@@ -7,9 +7,6 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void
     {
-        // This migration is intentionally standalone so the repo can be installed
-        // on top of a fresh Laravel app where the standard users table is created
-        // by the framework's default migration.
         if (! Schema::hasTable('users')) {
             Schema::create('users', function (Blueprint $table) {
                 $table->id();
@@ -24,7 +21,7 @@ return new class extends Migration {
 
         Schema::table('users', function (Blueprint $table) {
             $table->string('role', 20)->default('skpd')->index();
-            $table->foreignId('skpd_id')->nullable()->constrained('skpds')->nullOnDelete();
+            $table->unsignedBigInteger('skpd_id')->nullable()->index();
         });
     }
 
@@ -35,7 +32,6 @@ return new class extends Migration {
         }
 
         Schema::table('users', function (Blueprint $table) {
-            $table->dropForeign(['skpd_id']);
             $table->dropColumn(['skpd_id', 'role']);
         });
     }
