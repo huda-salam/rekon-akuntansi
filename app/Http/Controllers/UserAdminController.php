@@ -35,7 +35,7 @@ class UserAdminController extends Controller
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8'],
             'role' => ['required', Rule::in(['admin', 'skpkd', 'skpd'])],
-            'skpd_id' => ['nullable', 'integer', 'exists:skpds,id'],
+            'skpd_id' => ['nullable', 'integer', Rule::exists('skpds', 'id')->where(fn ($query) => $query->where('is_active', true))],
             'is_active' => ['sometimes', 'boolean'],
         ]);
 
@@ -62,7 +62,7 @@ class UserAdminController extends Controller
             'email' => ['sometimes', 'required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
             'password' => ['sometimes', 'nullable', 'string', 'min:8'],
             'role' => ['sometimes', 'required', Rule::in(['admin', 'skpkd', 'skpd'])],
-            'skpd_id' => ['sometimes', 'nullable', 'integer', 'exists:skpds,id'],
+            'skpd_id' => ['sometimes', 'nullable', 'integer', Rule::exists('skpds', 'id')->where(fn ($query) => $query->where('is_active', true))],
             'is_active' => ['sometimes', 'boolean'],
         ]);
 
