@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use App\Models\User;
 
 class AuthController extends Controller
 {
@@ -23,7 +23,7 @@ class AuthController extends Controller
         }
 
         if (!$user->is_active) {
-            return response()->json(['message' => 'Pengguna tidak aktif.'], 403);
+            return response()->json(['message' => 'Akun pengguna tidak aktif.'], 403);
         }
 
         if ($user->skpd_id !== null && !$user->skpd?->is_active) {
@@ -40,7 +40,13 @@ class AuthController extends Controller
 
     public function me(Request $request): JsonResponse
     {
-        return response()->json($request->user()->load('skpd'));
+        $user = $request->user();
+        if (!$user->is_active || ($user->skpd_id !== null && !$user->skpd?->is_active)) {
+            $user->currentAccessToken()?->delete();
+            return response()->json(['message' => 'Akun atau SKPD pengguna tidak aktif.'], 403);
+        }
+
+        return response()->json($user->load('skpd'));
     }
 
     public function logout(Request $request): JsonResponse
