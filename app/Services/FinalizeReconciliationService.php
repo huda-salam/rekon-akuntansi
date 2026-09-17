@@ -6,7 +6,7 @@ use App\Models\BeritaAcara;
 use App\Models\Reconciliation;
 use App\Models\ReconciliationSnapshot;
 use Illuminate\Support\Facades\DB;
-use RuntimeException;
+use Illuminate\Validation\ValidationException;
 
 class FinalizeReconciliationService
 {
@@ -16,15 +16,21 @@ class FinalizeReconciliationService
             $reconciliation->loadMissing(['accountingYear', 'skpd', 'details']);
 
             if ($reconciliation->status === 'finalized' || $reconciliation->snapshot()->exists()) {
-                throw new RuntimeException('Rekonsiliasi sudah difinalisasi dan tidak dapat diubah.');
+                throw ValidationException::withMessages([
+                    'reconciliation' => 'Rekonsiliasi sudah difinalisasi dan tidak dapat diubah.',
+                ]);
             }
 
             if ($reconciliation->status !== 'in_review') {
-                throw new RuntimeException('Rekonsiliasi harus berada pada status in_review sebelum difinalisasi.');
+                throw ValidationException::withMessages([
+                    'reconciliation' => 'Rekonsiliasi harus berada pada status in_review sebelum difinalisasi.',
+                ]);
             }
 
             if ($reconciliation->details->isEmpty()) {
-                throw new RuntimeException('Rekonsiliasi tidak dapat difinalisasi tanpa detail pencocokan.');
+                throw ValidationException::withMessages([
+                    'reconciliation' => 'Rekonsiliasi tidak dapat difinalisasi tanpa detail pencocokan.',
+                ]);
             }
 
             $finalizedAt = now();
