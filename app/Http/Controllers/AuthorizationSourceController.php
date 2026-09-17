@@ -56,7 +56,7 @@ class AuthorizationSourceController extends Controller
             'details.*.source_payload' => ['nullable', 'array'],
         ]);
 
-        $this->assertYearAndSkpd($data['accounting_year_id'], $data['skpd_id']);
+        $this->assertActiveSkpd($data['skpd_id']);
         $data['details'] = $this->canonicalizeAccountDetails($data['details'], $data['accounting_year_id'], $data['type']);
 
         $record = DB::transaction(function () use ($data) {
@@ -74,14 +74,8 @@ class AuthorizationSourceController extends Controller
         return response()->json($record->load(['details', 'accountingYear', 'skpd']), 201);
     }
 
-    private function assertYearAndSkpd(int $yearId, int $skpdId): void
+    private function assertActiveSkpd(int $skpdId): void
     {
-        if (! DB::table('accounting_years')->whereKey($yearId)->exists()) {
-            throw ValidationException::withMessages([
-                'accounting_year_id' => 'Tahun anggaran tidak ditemukan.',
-            ]);
-        }
-
         if (! DB::table('skpds')->whereKey($skpdId)->where('is_active', true)->exists()) {
             throw ValidationException::withMessages([
                 'skpd_id' => 'SKPD tidak aktif atau tidak ditemukan.',
