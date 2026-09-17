@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuthorizationRecord;
 use App\Models\Reconciliation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class ReconciliationCrudController extends Controller
 {
@@ -20,17 +22,18 @@ class ReconciliationCrudController extends Controller
             'period_end' => ['nullable', 'date', 'after_or_equal:period_start'],
             'notes' => ['nullable', 'string'],
             'details' => ['sometimes', 'array'],
-            'details.*.source_type' => ['required_with:details', 'string', 'max:40'],
-            'details.*.source_id' => ['nullable', 'integer'],
-            'details.*.match_status' => ['sometimes', 'string', 'max:30'],
-            'details.*.source_amount' => ['sometimes', 'numeric', 'min:0'],
+            'details.*.source_type' => ['required_with:details', 'in:authorization'],
+            'details.*.source_id' => ['required', 'integer', 'exists:authorizations,id'],
+            'details.*.match_status' => ['sometimes', 'in:unmatched,matched,partial,exception'],
             'details.*.matched_amount' => ['sometimes', 'numeric', 'min:0'],
-            'details.*.difference_amount' => ['sometimes', 'numeric'],
             'details.*.notes' => ['nullable', 'string'],
             'details.*.match_payload' => ['nullable', 'array'],
         ]);
 
-        $reconciliation = DB::transaction(function () use ($data) {
+        $this->assertActiveYearAndSkpd($data['accounting_year_id'], $data['skpd_id']);
+        $details = $this->normalizeDetails($data['details'] ?? [], $data['accounting_year_id'], $data['skpd_id']);
+
+        $reconciliation = DB::transaction(function () use ($data, $details) {
             $reconciliation = Reconciliation::create([
                 'accounting_year_id' => $data['accounting_year_id'],
                 'skpd_id' => $data['skpd_id'],
@@ -40,17 +43,8 @@ class ReconciliationCrudController extends Controller
                 'notes' => $data['notes'] ?? null,
             ]);
 
-            foreach ($data['details'] ?? [] as $detail) {
-                $reconciliation->details()->create([
-                    'source_type' => $detail['source_type'],
-                    'source_id' => $detail['source_id'] ?? null,
-                    'match_status' => $detail['match_status'] ?? 'unmatched',
-                    'source_amount' => $detail['source_amount'] ?? 0,
-                    'matched_amount' => $detail['matched_amount'] ?? 0,
-                    'difference_amount' => $detail['difference_amount'] ?? 0,
-                    'notes' => $detail['notes'] ?? null,
-                    'match_payload' => $detail['match_payload'] ?? null,
-                ]);
+            if ($details !== []) {
+                $reconciliation->details()->createMany($details);
             }
 
             return $reconciliation;
@@ -68,40 +62,141 @@ class ReconciliationCrudController extends Controller
             'period_end' => ['nullable', 'date', 'after_or_equal:period_start'],
             'notes' => ['nullable', 'string'],
             'details' => ['sometimes', 'array'],
-            'details.*.source_type' => ['required_with:details', 'string', 'max:40'],
-            'details.*.source_id' => ['nullable', 'integer'],
-            'details.*.match_status' => ['sometimes', 'string', 'max:30'],
-            'details.*.source_amount' => ['sometimes', 'numeric', 'min:0'],
+            'details.*.source_type' => ['required_with:details', 'in:authorization'],
+            'details.*.source_id' => ['required', 'integer', 'exists:authorizations,id'],
+            'details.*.match_status' => ['sometimes', 'in:unmatched,matched,partial,exception'],
             'details.*.matched_amount' => ['sometimes', 'numeric', 'min:0'],
-            'details.*.difference_amount' => ['sometimes', 'numeric'],
             'details.*.notes' => ['nullable', 'string'],
             'details.*.match_payload' => ['nullable', 'array'],
         ]);
 
-        DB::transaction(function () use ($reconciliation, $data) {
+        $details = null;
+        if (array_key_exists('details', $data)) {
+            $details = $this->normalizeDetails(
+                $data['details'],
+                $reconciliation->accounting_year_id,
+                $reconciliation->skpd_id,
+            );
+        }
+
+        DB::transaction(function () use ($reconciliation, $data, $details) {
             $reconciliation->update([
                 'period_start' => $data['period_start'] ?? $reconciliation->period_start,
                 'period_end' => $data['period_end'] ?? $reconciliation->period_end,
                 'notes' => $data['notes'] ?? $reconciliation->notes,
+                'status' => $details !== null && $details !== [] ? 'in_review' : $reconciliation->status,
             ]);
 
-            if (array_key_exists('details', $data)) {
+            if ($details !== null) {
                 $reconciliation->details()->delete();
-                foreach ($data['details'] as $detail) {
-                    $reconciliation->details()->create([
-                        'source_type' => $detail['source_type'],
-                        'source_id' => $detail['source_id'] ?? null,
-                        'match_status' => $detail['match_status'] ?? 'unmatched',
-                        'source_amount' => $detail['source_amount'] ?? 0,
-                        'matched_amount' => $detail['matched_amount'] ?? 0,
-                        'difference_amount' => $detail['difference_amount'] ?? 0,
-                        'notes' => $detail['notes'] ?? null,
-                        'match_payload' => $detail['match_payload'] ?? null,
-                    ]);
+                if ($details !== []) {
+                    $reconciliation->details()->createMany($details);
                 }
             }
         });
 
         return response()->json($reconciliation->fresh()->load(['accountingYear', 'skpd', 'details']));
+    }
+
+    private function assertActiveYearAndSkpd(int $yearId, int $skpdId): void
+    {
+        $yearIsActive = DB::table('accounting_years')
+            ->where('id', $yearId)
+            ->where('is_active', true)
+            ->exists();
+
+        if (! $yearIsActive) {
+            throw ValidationException::withMessages([
+                'accounting_year_id' => 'Rekonsiliasi baru hanya dapat dibuat untuk tahun anggaran aktif.',
+            ]);
+        }
+
+        $skpdIsActive = DB::table('skpds')
+            ->where('id', $skpdId)
+            ->where('is_active', true)
+            ->exists();
+
+        if (! $skpdIsActive) {
+            throw ValidationException::withMessages([
+                'skpd_id' => 'SKPD tidak aktif atau tidak ditemukan.',
+            ]);
+        }
+    }
+
+    private function normalizeDetails(array $details, int $yearId, int $skpdId): array
+    {
+        if ($details === []) {
+            return [];
+        }
+
+        $sourceIds = array_map(static fn (array $detail): int => (int) $detail['source_id'], $details);
+        if (count($sourceIds) !== count(array_unique($sourceIds))) {
+            throw ValidationException::withMessages([
+                'details' => 'Sumber pengesahan yang sama tidak boleh dicantumkan lebih dari satu kali.',
+            ]);
+        }
+
+        $sources = AuthorizationRecord::query()
+            ->whereIn('id', $sourceIds)
+            ->where('accounting_year_id', $yearId)
+            ->where('skpd_id', $skpdId)
+            ->with('details:id,authorization_id,amount')
+            ->get()
+            ->keyBy('id');
+
+        if ($sources->count() !== count($sourceIds)) {
+            throw ValidationException::withMessages([
+                'details' => 'Seluruh sumber pengesahan harus berasal dari tahun dan SKPD rekonsiliasi.',
+            ]);
+        }
+
+        return array_map(function (array $detail) use ($sources): array {
+            $source = $sources->get((int) $detail['source_id']);
+            $sourceAmount = (float) $source->details->sum(fn ($item) => (float) $item->amount);
+            $matchedAmount = (float) ($detail['matched_amount'] ?? 0);
+            $status = $detail['match_status'] ?? 'unmatched';
+
+            if ($matchedAmount > $sourceAmount) {
+                throw ValidationException::withMessages([
+                    'details' => "Nilai cocok untuk sumber #{$source->id} tidak boleh melebihi nilai sumber.",
+                ]);
+            }
+
+            $this->assertMatchConsistency($status, $sourceAmount, $matchedAmount);
+
+            return [
+                'source_type' => 'authorization',
+                'source_id' => $source->id,
+                'match_status' => $status,
+                'source_amount' => $sourceAmount,
+                'matched_amount' => $matchedAmount,
+                'difference_amount' => $sourceAmount - $matchedAmount,
+                'notes' => $detail['notes'] ?? null,
+                'match_payload' => $detail['match_payload'] ?? null,
+            ];
+        }, $details);
+    }
+
+    private function assertMatchConsistency(string $status, float $sourceAmount, float $matchedAmount): void
+    {
+        $epsilon = 0.005;
+
+        if ($status === 'unmatched' && abs($matchedAmount) > $epsilon) {
+            throw ValidationException::withMessages([
+                'details' => 'Status belum cocok harus memiliki nilai cocok sebesar 0.',
+            ]);
+        }
+
+        if ($status === 'matched' && abs($sourceAmount - $matchedAmount) > $epsilon) {
+            throw ValidationException::withMessages([
+                'details' => 'Status cocok harus memiliki nilai cocok sama dengan nilai sumber.',
+            ]);
+        }
+
+        if ($status === 'partial' && ($matchedAmount <= $epsilon || $matchedAmount >= $sourceAmount - $epsilon)) {
+            throw ValidationException::withMessages([
+                'details' => 'Status sebagian harus memiliki nilai cocok lebih dari 0 dan kurang dari nilai sumber.',
+            ]);
+        }
     }
 }
