@@ -17,7 +17,7 @@ Aplikasi sederhana untuk rekonsiliasi akuntansi pemerintah daerah.
 ## Technology direction
 
 - Backend: Laravel 11 / PHP 8.3+
-- Frontend: React + Vite + Tailwind CSS
+- Frontend: React + Vite
 - Database: SQLite for development, MySQL for production
 - Authentication: Laravel Sanctum
 
@@ -25,9 +25,22 @@ Aplikasi sederhana untuk rekonsiliasi akuntansi pemerintah daerah.
 
 Aplikasi sengaja dibuat sederhana dan sesuai proses bisnis rekonsiliasi. Tidak menggunakan microservices, CQRS, event sourcing, atau abstraction berlebihan pada tahap awal.
 
-## Development status
+Rekonsiliasi yang sudah difinalisasi tidak diedit. Berita Acara dan snapshot menyimpan keadaan data pada saat finalisasi, termasuk hash SHA-256 sebagai identitas snapshot.
 
-The repository is being implemented incrementally. Current implementation includes the Laravel application bootstrap, core database migrations/models, reconciliation API, immutable snapshot finalization, and an initial React/Vite dashboard.
+Data Bidang Aset/BMD belum dimodelkan secara spesifik karena format BA sumber belum tersedia. Setelah format aktual tersedia, struktur sumber dan aturan pencocokan akan disesuaikan berdasarkan dokumen tersebut, bukan diasumsikan dari format umum.
+
+## API utama
+
+- `POST /api/auth/login`
+- `GET /api/auth/me`
+- `POST /api/auth/logout`
+- `GET /api/years`
+- `POST /api/years` — admin/SKPKD
+- `POST /api/years/{id}/activate` — admin/SKPKD
+- `GET/POST /api/authorizations`
+- `GET/POST /api/reconciliations`
+- `GET/PUT /api/reconciliations/{id}`
+- `POST /api/reconciliations/{id}/finalize` — admin/SKPKD
 
 ## Local setup
 
@@ -47,4 +60,9 @@ npm install
 npm run dev
 ```
 
-The API requires an authenticated Sanctum user. The initial UI is intentionally lightweight and will be expanded with CRUD and reconciliation workflows in the next iteration.
+Seeded development users:
+
+- Admin: `admin@example.test` / `password`
+- SKPD: `skpd@example.test` / `password`
+
+Do not use the seeded credentials in production.
