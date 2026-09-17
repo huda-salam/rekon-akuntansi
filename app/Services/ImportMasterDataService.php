@@ -23,7 +23,7 @@ class ImportMasterDataService
         'rekening_pembiayaan',
     ];
 
-    public function execute(UploadedFile $file, ?int $sourceYear = null): array
+    public function execute(UploadedFile $file, int $year): array
     {
         $import = new MasterDataImport();
         Excel::import($import, $file);
@@ -31,7 +31,7 @@ class ImportMasterDataService
         $rows = $import->rows ?? collect();
         $this->validateRows($rows);
 
-        return DB::transaction(function () use ($rows, $sourceYear) {
+        return DB::transaction(function () use ($rows, $year) {
             $masterCount = 0;
             $skpdCount = 0;
 
@@ -43,12 +43,11 @@ class ImportMasterDataService
                 $level = $this->nullableNumber($row['level'] ?? null);
 
                 MasterReference::updateOrCreate(
-                    ['type' => $type, 'code' => $code],
+                    ['year' => $year, 'type' => $type, 'code' => $code],
                     [
                         'description' => $description,
                         'level' => $level,
                         'parent_code' => $parentCode,
-                        'source_year' => $sourceYear,
                         'is_active' => true,
                     ],
                 );
@@ -70,7 +69,7 @@ class ImportMasterDataService
             return [
                 'rows' => $masterCount,
                 'skpds' => $skpdCount,
-                'source_year' => $sourceYear,
+                'year' => $year,
             ];
         });
     }
