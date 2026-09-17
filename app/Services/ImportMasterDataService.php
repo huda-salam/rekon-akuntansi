@@ -57,7 +57,11 @@ class ImportMasterDataService
                 if ($type === 'skpd') {
                     Skpd::updateOrCreate(
                         ['code' => $code],
-                        ['name' => $description, 'is_active' => true],
+                        [
+                            'name' => $description,
+                            'parent_code' => $parentCode,
+                            'is_active' => true,
+                        ],
                     );
                     $skpdCount++;
                 }
