@@ -7,7 +7,6 @@ use App\Models\MasterReference;
 use App\Models\Skpd;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class AuthorizationSourceTest extends TestCase
@@ -16,9 +15,7 @@ class AuthorizationSourceTest extends TestCase
 
     private function activeYear(): AccountingYear
     {
-        $year = AccountingYear::create(['year' => 2026, 'is_active' => false]);
-        DB::statement('UPDATE accounting_years SET is_active = 1 WHERE id = ?', [$year->id]);
-        return $year->fresh();
+        return AccountingYear::create(['year' => 2026, 'is_active' => true]);
     }
 
     public function test_skpd_user_can_view_only_own_sources(): void
