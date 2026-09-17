@@ -2,9 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AccountingYear;
 use App\Models\AuthorizationRecord;
 use App\Models\MasterReference;
-use App\Models\AccountingYear;
+use App\Models\Skpd;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -57,7 +58,13 @@ class AuthorizationSourceController extends Controller
         ]);
 
         $this->assertActiveSkpd($data['skpd_id']);
-        $data['details'] = $this->canonicalizeAccountDetails($data['details'], $data['accounting_year_id'], $data['type']);
+
+        $year = AccountingYear::query()->findOrFail($data['accounting_year_id']);
+        $data['details'] = $this->canonicalizeAccountDetails(
+            $data['details'],
+            $year->year,
+            $data['type']
+        );
 
         $record = DB::transaction(function () use ($data) {
             $details = $data['details'];
@@ -76,16 +83,15 @@ class AuthorizationSourceController extends Controller
 
     private function assertActiveSkpd(int $skpdId): void
     {
-        if (! DB::table('skpds')->whereKey($skpdId)->where('is_active', true)->exists()) {
+        if (! Skpd::query()->whereKey($skpdId)->where('is_active', true)->exists()) {
             throw ValidationException::withMessages([
                 'skpd_id' => 'SKPD tidak aktif atau tidak ditemukan.',
             ]);
         }
     }
 
-    private function canonicalizeAccountDetails(array $details, int $yearId, string $sourceType): array
+    private function canonicalizeAccountDetails(array $details, int $year, string $sourceType): array
     {
-        $year = AccountingYear::query()->findOrFail($yearId)->year;
         $accountType = self::ACCOUNT_TYPES[$sourceType];
 
         foreach ($details as $index => &$detail) {
