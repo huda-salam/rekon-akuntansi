@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [react()],
   build: {
     outDir: 'public/build',
-    manifest: true,
+    manifest: 'manifest.json',
     emptyOutDir: true,
   },
   server: {
