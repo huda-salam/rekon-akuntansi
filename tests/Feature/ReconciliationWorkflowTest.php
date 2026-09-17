@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\AccountingYear;
 use App\Models\AuthorizationRecord;
+use App\Models\Reconciliation;
+use App\Models\ReconciliationSnapshot;
 use App\Models\Skpd;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -22,7 +24,7 @@ class ReconciliationWorkflowTest extends TestCase
             'name' => 'User SKPD A', 'email' => 'a@example.test', 'password' => 'password',
             'role' => 'skpd', 'skpd_id' => $own->id,
         ]);
-        $otherRecon = \App\Models\Reconciliation::create([
+        $otherRecon = Reconciliation::create([
             'accounting_year_id' => $year->id,
             'skpd_id' => $other->id,
             'status' => 'draft',
@@ -239,7 +241,7 @@ class ReconciliationWorkflowTest extends TestCase
             'signatory_official_position' => 'Kepala SKPD',
         ])->assertCreated();
 
-        $snapshot = \App\Models\ReconciliationSnapshot::where('reconciliation_id', $id)->firstOrFail();
+        $snapshot = ReconciliationSnapshot::where('reconciliation_id', $id)->firstOrFail();
         $hash = $snapshot->snapshot_hash;
 
         $this->actingAs($admin, 'sanctum')->putJson("/api/reconciliations/{$id}", [
