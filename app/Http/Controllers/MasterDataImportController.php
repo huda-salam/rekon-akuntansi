@@ -10,7 +10,7 @@ class MasterDataImportController extends Controller
 {
     public function store(Request $request, ImportMasterDataService $service): JsonResponse
     {
-        abort_unless($request->user()->isAdmin(), 403);
+        abort_unless($request->user()->role === 'admin', 403);
 
         $validated = $request->validate([
             'file' => ['required', 'file', 'mimes:xlsx,xls', 'max:10240'],
