@@ -8,6 +8,7 @@ use App\Http\Controllers\HealthController;
 use App\Http\Controllers\ReconciliationController;
 use App\Http\Controllers\ReconciliationCrudController;
 use App\Http\Controllers\SkpdAdminController;
+use App\Http\Controllers\UserAdminController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/health', HealthController::class);
@@ -23,6 +24,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/years/{accountingYear}/activate', [AccountingYearAdminController::class, 'activate']);
 
     Route::apiResource('/skpds', SkpdAdminController::class)->only(['index', 'store', 'update']);
+    Route::apiResource('/users', UserAdminController::class)->only(['index', 'store', 'update']);
 
     Route::get('/authorizations', [AuthorizationSourceController::class, 'index']);
     Route::post('/authorizations', [AuthorizationSourceController::class, 'store']);
