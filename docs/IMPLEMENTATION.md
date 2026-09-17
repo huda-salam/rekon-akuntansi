@@ -5,14 +5,13 @@
 1. Admin configures the active accounting year.
 2. Admin maintains SKPD and pejabat records.
 3. Admin creates users and assigns either SKPD scope or SKPKD/admin scope.
-4. Admin/SKPKD records or imports source data for pengesahan using the supplied source format.
+4. Source data for pengesahan is recorded/imported using the supplied source format.
 5. SKPD can review its own source data and reconciliation results.
 6. SKPKD/admin performs reconciliation between the relevant source data.
-7. The reconciliation result moves from `draft` to `in_review` when matching is saved.
-8. The `in_review` result is finalized through a Berita Acara (BA).
-9. Creating the BA freezes an immutable snapshot of the reconciliation and the relevant identification of SKPD/pejabat data used at that moment.
-10. Future master-data edits must not alter an existing reconciliation snapshot.
-11. Asset/BMD BA will later be added as another structured source for matching asset additions; its exact fields and matching rules remain pending the actual BA format.
+7. The reconciliation result is finalized through a Berita Acara (BA).
+8. Creating the BA freezes an immutable snapshot of the reconciliation and the relevant identification of SKPD/pejabat data used at that moment.
+9. Future master-data edits must not alter an existing reconciliation snapshot.
+10. Asset/BMD BA will later be added as another structured source for matching asset additions; its exact fields and matching rules remain pending the actual BA format.
 
 ## Initial data areas
 
@@ -26,18 +25,35 @@
 - `reconciliation_snapshots`: immutable finalized snapshot header
 - `reconciliation_snapshot_details`: immutable finalized snapshot details
 - `berita_acaras`: BA metadata and links to the frozen snapshot
+- `master_references`: imported hierarchical reference data from the master Excel file
 
-## Server-side integrity rules
+## Master Excel import
 
-- Reconciliation creation is limited to Admin/SKPKD.
-- New reconciliation and new source data use the active accounting year and an active SKPD.
-- A reconciliation detail must reference an existing pengesahan source belonging to the same year and SKPD as the reconciliation.
-- Source amount is recalculated from the source detail rows; client-provided source and difference amounts are not trusted.
-- Matching amount must not exceed the source amount.
-- `unmatched` requires a zero matching amount; `matched` requires full matching; `partial` requires a positive amount below the source amount; `exception` is available for cases requiring review.
-- Difference is always calculated server-side as source amount minus matching amount.
-- Finalization is allowed only from `in_review` and only when reconciliation details exist.
-- After finalization, the working reconciliation cannot be updated through the API.
+The MVP supports an administrator-only Excel import at `POST /api/master-data/import`.
+
+Expected sheet structure:
+
+| Column | Meaning |
+| --- | --- |
+| `kode` | Master/reference code |
+| `uraian` | Description/name |
+| `jenis` | `urusan`, `bidang`, `program`, `sub_kegiatan`, `skpd`, `rekening_belanja`, `rekening_pendapatan`, or `rekening_pembiayaan` |
+| `level` | Optional hierarchy level |
+| `parent` | Optional parent code |
+
+The supplied 2026 workbook uses one sheet named `ref` with these columns. Its data contains 3,630 rows across 8 master types, including 96 SKPD rows.
+
+Import behavior is deliberately **upsert**, not destructive synchronization:
+
+- Existing records are updated using `(jenis, kode)` as the natural key.
+- New records are inserted.
+- Imported rows are stored in `master_references` so the original hierarchy and master type are retained.
+- Rows with `jenis = skpd` are also synchronized into the operational `skpds` table by `code`.
+- Rows missing required fields, using an unknown `jenis`, or duplicated within the same `(jenis, kode)` import are rejected before database writes.
+- The database write is transactional; a validation failure does not partially import the workbook.
+- Import does not deactivate or delete records that are absent from a later workbook. This avoids destructive changes when a source workbook is incomplete or represents only part of a master set.
+
+The import endpoint accepts `.xlsx` and `.xls` files up to 10 MB and optionally records the source year.
 
 ## Important constraint
 
