@@ -12,13 +12,13 @@ class MasterReference extends Model
         'type',
         'level',
         'parent_code',
-        'source_year',
+        'year',
         'is_active',
     ];
 
     protected $casts = [
         'level' => 'decimal:2',
-        'source_year' => 'integer',
+        'year' => 'integer',
         'is_active' => 'boolean',
     ];
 }
