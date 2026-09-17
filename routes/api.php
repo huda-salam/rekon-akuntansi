@@ -1,6 +1,6 @@
 <?php
 
-use App\Http\Controllers\AccountingYearController;
+use App\Http\Controllers\AccountingYearAdminController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\AuthorizationSourceController;
 use App\Http\Controllers\HealthController;
@@ -16,9 +16,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/auth/me', [AuthController::class, 'me']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
 
-    Route::get('/years', [AccountingYearController::class, 'index']);
-    Route::post('/years', [AccountingYearController::class, 'store']);
-    Route::post('/years/{accountingYear}/activate', [AccountingYearController::class, 'activate']);
+    Route::get('/years', [AccountingYearAdminController::class, 'index']);
+    Route::post('/years', [AccountingYearAdminController::class, 'store']);
+    Route::post('/years/{accountingYear}/activate', [AccountingYearAdminController::class, 'activate']);
 
     Route::apiResource('/skpds', SkpdAdminController::class)->only(['index', 'store', 'update']);
 
