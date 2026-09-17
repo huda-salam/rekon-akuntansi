@@ -14,10 +14,17 @@ class AuthorizationAccountValidationTest extends TestCase
 {
     use RefreshDatabase;
 
+    private function activeYear(): AccountingYear
+    {
+        $year = AccountingYear::create(['year' => 2026, 'is_active' => false]);
+        DB::table('accounting_years')->whereKey($year->id)->update(['is_active' => 1]);
+
+        return $year->fresh();
+    }
+
     public function test_account_code_must_exist_in_year_master_and_type(): void
     {
-        $year = AccountingYear::create(['year' => 2026, 'is_active' => true]);
-        DB::table('accounting_years')->whereKey($year->id)->update(['is_active' => 1]);
+        $year = $this->activeYear();
         $skpd = Skpd::create(['code' => 'SKPD-A', 'name' => 'SKPD A', 'is_active' => true]);
         $admin = User::create(['name' => 'Admin', 'email' => 'account-validation@example.test', 'password' => 'password', 'role' => 'admin']);
 
@@ -43,8 +50,7 @@ class AuthorizationAccountValidationTest extends TestCase
 
     public function test_account_name_is_canonicalized_from_year_master(): void
     {
-        $year = AccountingYear::create(['year' => 2026, 'is_active' => true]);
-        DB::table('accounting_years')->whereKey($year->id)->update(['is_active' => 1]);
+        $year = $this->activeYear();
         $skpd = Skpd::create(['code' => 'SKPD-A', 'name' => 'SKPD A', 'is_active' => true]);
         $admin = User::create(['name' => 'Admin', 'email' => 'account-canonical@example.test', 'password' => 'password', 'role' => 'admin']);
 
