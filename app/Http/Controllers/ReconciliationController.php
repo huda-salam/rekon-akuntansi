@@ -11,6 +11,8 @@ class ReconciliationController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $this->authorize('viewAny', Reconciliation::class);
+
         $user = $request->user();
         $query = Reconciliation::query()->with(['accountingYear', 'skpd']);
 
