@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\AuthorizationRecord;
+use App\Models\MasterReference;
+use App\Models\AccountingYear;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -10,6 +12,11 @@ use Illuminate\Validation\ValidationException;
 
 class AuthorizationSourceController extends Controller
 {
+    private const ACCOUNT_TYPES = [
+        'pendapatan' => 'rekening_pendapatan',
+        'belanja' => 'rekening_belanja',
+    ];
+
     public function index(Request $request): JsonResponse
     {
         $query = AuthorizationRecord::query()
@@ -50,6 +57,7 @@ class AuthorizationSourceController extends Controller
         ]);
 
         $this->assertActiveYearAndSkpd($data['accounting_year_id'], $data['skpd_id']);
+        $data['details'] = $this->canonicalizeAccountDetails($data['details'], $data['accounting_year_id'], $data['type']);
 
         $record = DB::transaction(function () use ($data) {
             $details = $data['details'];
@@ -79,5 +87,36 @@ class AuthorizationSourceController extends Controller
                 'skpd_id' => 'SKPD tidak aktif atau tidak ditemukan.',
             ]);
         }
+    }
+
+    private function canonicalizeAccountDetails(array $details, int $yearId, string $sourceType): array
+    {
+        $year = AccountingYear::query()->findOrFail($yearId)->year;
+        $accountType = self::ACCOUNT_TYPES[$sourceType];
+
+        foreach ($details as $index => &$detail) {
+            $code = trim((string) ($detail['account_code'] ?? ''));
+            if ($code === '') {
+                continue;
+            }
+
+            $master = MasterReference::query()
+                ->where('year', $year)
+                ->where('type', $accountType)
+                ->where('code', $code)
+                ->where('is_active', true)
+                ->first();
+
+            if (! $master) {
+                throw ValidationException::withMessages([
+                    "details.{$index}.account_code" => "Rekening {$code} tidak ditemukan pada master {$accountType} tahun anggaran {$year}.",
+                ]);
+            }
+
+            $detail['account_code'] = $master->code;
+            $detail['account_name'] = $master->description;
+        }
+
+        return $details;
     }
 }
