@@ -77,7 +77,7 @@ class GenericWorkbookParser
                 'source_record_id' => $record->id,
                 'accounting_year_id' => $yearId,
                 'skpd_id' => $this->resolveSkpd($row, $headers)?->id,
-                'period' => $month ? sprintf('%04d-%02d', $yearId ? (int) $document->year->year : 0, $month) : 'UNKNOWN',
+                'period' => $month ? sprintf('%04d-%02d', $year, $month) : 'UNKNOWN',
                 'month' => $month,
                 'source_type' => $document->document_type,
                 'transaction_type' => 'OTHER',
