@@ -10,7 +10,7 @@ class SourceDocumentDetector
      * @param Collection<string, Collection<int, array<int, mixed>>> $sheets
      * @return array{type:string,category:?string,confidence:float,evidence:array<int,string>}
      */
-    public function detect(Collection $sheets): array
+    public function detect(Collection $sheets, ?string $filename = null): array
     {
         $evidence = [];
 
@@ -85,6 +85,64 @@ class SourceDocumentDetector
                 'category' => 'RKUD',
                 'confidence' => 0.85,
                 'evidence' => $evidence,
+            ];
+        }
+
+        $filenameText = mb_strtolower((string) $filename);
+
+        if (str_contains($filenameText, 'buku besar') || str_contains($filenameText, 'buku_jurnal')) {
+            return [
+                'type' => 'ledger',
+                'category' => 'ACCOUNTING',
+                'confidence' => 0.75,
+                'evidence' => array_merge($evidence, ['filename: ledger pattern']),
+            ];
+        }
+
+        if (str_contains($filenameText, 'rekonsiliasi pendapatan')) {
+            return [
+                'type' => 'revenue_reconciliation',
+                'category' => 'RKUD',
+                'confidence' => 0.75,
+                'evidence' => array_merge($evidence, ['filename: revenue reconciliation pattern']),
+            ];
+        }
+
+        if (str_contains($filenameText, 'rekonsiliasi pengeluaran')) {
+            return [
+                'type' => 'expenditure_reconciliation',
+                'category' => 'RKUD',
+                'confidence' => 0.75,
+                'evidence' => array_merge($evidence, ['filename: expenditure reconciliation pattern']),
+            ];
+        }
+
+        if (str_contains($filenameText, 'kertas kerja')
+            || str_contains($filenameText, 'lra-')
+            || str_contains($filenameText, 'neraca')
+            || str_contains($filenameText, 'laporan operasional')
+            || str_contains($filenameText, 'lpe_')
+        ) {
+            return [
+                'type' => 'financial_statement',
+                'category' => 'ACCOUNTING',
+                'confidence' => 0.7,
+                'evidence' => array_merge($evidence, ['filename: financial statement pattern']),
+            ];
+        }
+
+        if (str_contains($filenameText, 'pengesahan')
+            || str_contains($filenameText, 'bosp')
+            || str_contains($filenameText, 'bok')
+            || str_contains($filenameText, 'blud')
+            || str_contains($filenameText, 'tunjangan')
+            || str_contains($filenameText, 'tamsil')
+        ) {
+            return [
+                'type' => 'non_rkud_transfer',
+                'category' => 'NON_RKUD',
+                'confidence' => 0.65,
+                'evidence' => array_merge($evidence, ['filename: non-RKUD transfer pattern']),
             ];
         }
 
