@@ -127,6 +127,10 @@ class ReconciliationController extends Controller
 
         $ba = $service->execute($reconciliation, $validated);
 
-        return response()->json($ba->load('snapshot'), 201);
+        return response()->json($ba->load([
+            'snapshot',
+            'reconciliation.accountingYear:id,year',
+            'reconciliation.skpd:id,code,name',
+        ]), 201);
     }
 }
