@@ -34,6 +34,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/master-references', [MasterReferenceController::class, 'index']);
     Route::get('/source-documents', [SourceDocumentController::class, 'index']);
     Route::post('/source-documents/import', [SourceDocumentController::class, 'store']);
+    Route::post('/source-documents/import-batch', [SourceDocumentController::class, 'batch']);
 
     Route::get('/authorizations', [AuthorizationSourceController::class, 'index']);
     Route::post('/authorizations', [AuthorizationSourceController::class, 'store']);
