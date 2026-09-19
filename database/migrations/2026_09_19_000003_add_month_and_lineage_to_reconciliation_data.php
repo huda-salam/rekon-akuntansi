@@ -26,6 +26,8 @@ return new class extends Migration
 
         Schema::table('reconciliations', function (Blueprint $table) {
             $table->unsignedTinyInteger('month')->nullable()->after('skpd_id');
+            $table->string('reconciliation_type', 30)->default('REGULAR')->after('month');
+            $table->unsignedInteger('sequence')->nullable()->after('reconciliation_type');
             $table->index(['accounting_year_id', 'month', 'skpd_id']);
         });
     }
@@ -34,7 +36,7 @@ return new class extends Migration
     {
         Schema::table('reconciliations', function (Blueprint $table) {
             $table->dropIndex(['accounting_year_id', 'month', 'skpd_id']);
-            $table->dropColumn('month');
+            $table->dropColumn(['month', 'reconciliation_type', 'sequence']);
         });
 
         Schema::table('reconciliation_results', function (Blueprint $table) {
