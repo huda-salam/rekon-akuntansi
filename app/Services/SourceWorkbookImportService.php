@@ -50,7 +50,7 @@ class SourceWorkbookImportService
 
         $spreadsheet = IOFactory::load($file->getRealPath());
         $sheets = $this->readSheets($spreadsheet);
-        $detection = $this->detector->detect($sheets);
+        $detection = $this->detector->detect($sheets, $file->getClientOriginalName());
 
         if ($detection['type'] === 'unknown') {
             throw ValidationException::withMessages([
