@@ -76,6 +76,8 @@ class FinalizeReconciliationService
                 'period_start' => $reconciliation->period_start,
                 'period_end' => $reconciliation->period_end,
                 'month' => $reconciliation->month,
+                'reconciliation_type' => $reconciliation->reconciliation_type,
+                'sequence' => $reconciliation->sequence,
                 'notes' => $reconciliation->notes,
                 'finalized_at' => $finalizedAt,
                 'snapshot_hash' => hash('sha256', $json),
