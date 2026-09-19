@@ -6,8 +6,8 @@ use App\Models\AccountingYear;
 use App\Models\Skpd;
 use App\Models\SourceDocument;
 use App\Services\ExpenditureReconciliationParser;
-use Illuminate\Support\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Collection;
 use Tests\TestCase;
 
 class SourceIngestionTest extends TestCase
@@ -22,6 +22,7 @@ class SourceIngestionTest extends TestCase
             'name' => 'Kecamatan Pare',
             'is_active' => true,
         ]);
+
         $document = SourceDocument::create([
             'accounting_year_id' => $year->id,
             'original_filename' => 'rekonsiliasi pengeluaran.xlsx',
@@ -40,27 +41,38 @@ class SourceIngestionTest extends TestCase
         $count = app(ExpenditureReconciliationParser::class)->parse($rows, $document, 2026);
 
         $this->assertSame(1, $count);
+
         $this->assertDatabaseHas('source_records', [
             'source_document_id' => $document->id,
             'record_type' => 'expenditure_reconciliation_row',
         ]);
+
         $this->assertDatabaseHas('financial_facts', [
             'source_document_id' => $document->id,
             'skpd_id' => $skpd->id,
             'metric' => 'sp2d_ls',
             'value' => 100,
         ]);
+
         $this->assertDatabaseHas('financial_facts', [
             'source_document_id' => $document->id,
             'skpd_id' => $skpd->id,
             'metric' => 'total_sp2d_derived',
             'value' => 120,
         ]);
+
         $this->assertDatabaseHas('financial_facts', [
             'source_document_id' => $document->id,
             'skpd_id' => $skpd->id,
             'metric' => 'total_spj_derived',
             'value' => 115,
+        ]);
+
+        $this->assertDatabaseHas('financial_facts', [
+            'source_document_id' => $document->id,
+            'skpd_id' => $skpd->id,
+            'metric' => 'selisih_kas_derived',
+            'value' => 0,
         ]);
     }
 }
