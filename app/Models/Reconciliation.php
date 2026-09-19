@@ -10,13 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class Reconciliation extends Model
 {
     protected $fillable = [
-        'accounting_year_id',
-        'skpd_id',
-        'status',
-        'period_start',
-        'period_end',
-        'notes',
-        'finalized_at',
+        'accounting_year_id','skpd_id','month','status','period_start','period_end','notes','finalized_at',
     ];
 
     protected $casts = [
@@ -25,28 +19,9 @@ class Reconciliation extends Model
         'finalized_at' => 'datetime',
     ];
 
-    public function accountingYear(): BelongsTo
-    {
-        return $this->belongsTo(AccountingYear::class);
-    }
-
-    public function skpd(): BelongsTo
-    {
-        return $this->belongsTo(Skpd::class);
-    }
-
-    public function details(): HasMany
-    {
-        return $this->hasMany(ReconciliationDetail::class);
-    }
-
-    public function snapshot(): HasOne
-    {
-        return $this->hasOne(ReconciliationSnapshot::class);
-    }
-
-    public function beritaAcara(): HasOne
-    {
-        return $this->hasOne(BeritaAcara::class);
-    }
+    public function accountingYear(): BelongsTo { return $this->belongsTo(AccountingYear::class); }
+    public function skpd(): BelongsTo { return $this->belongsTo(Skpd::class); }
+    public function details(): HasMany { return $this->hasMany(ReconciliationDetail::class); }
+    public function snapshot(): HasOne { return $this->hasOne(ReconciliationSnapshot::class); }
+    public function beritaAcara(): HasOne { return $this->hasOne(BeritaAcara::class); }
 }
