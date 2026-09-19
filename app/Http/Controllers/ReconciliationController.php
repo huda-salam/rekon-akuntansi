@@ -40,6 +40,7 @@ class ReconciliationController extends Controller
     {
         $data = $request->validate([
             'year' => ['required', 'integer', 'between:2000,2100'],
+            'month' => ['nullable', 'integer', 'between:1,12'],
         ]);
 
         $year = \App\Models\AccountingYear::query()
@@ -49,7 +50,7 @@ class ReconciliationController extends Controller
         abort_unless($request->user()->isAdmin() || $request->user()->skpd_id !== null, 403);
 
         return response()->json([
-            'data' => $service->listForUser($request->user(), $year->id),
+            'data' => $service->listForUser($request->user(), $year->id, $data['month'] ?? null),
         ]);
     }
 
@@ -61,6 +62,7 @@ class ReconciliationController extends Controller
 
         $data = $request->validate([
             'year' => ['required', 'integer', 'between:2000,2100'],
+            'month' => ['nullable', 'integer', 'between:1,12'],
             'source_document_ids' => ['sometimes', 'array'],
             'source_document_ids.*' => ['integer', 'distinct'],
         ]);
@@ -74,7 +76,8 @@ class ReconciliationController extends Controller
                 $year->id,
                 $request->user()->id,
                 $data['source_document_ids'] ?? [],
-                ['requested_year' => $data['year']],
+                ['requested_year' => $data['year'], 'requested_month' => $data['month'] ?? null],
+                $data['month'] ?? null,
             );
         } catch (RuntimeException $exception) {
             return response()->json([
