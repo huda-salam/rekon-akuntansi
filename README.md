@@ -68,3 +68,21 @@ Seeded development users:
 - SKPD: `skpd@example.test` / `password`
 
 Do not use the seeded credentials in production.
+
+
+## Source ingestion
+
+Source workbooks can be imported individually or in batch. The batch endpoint accepts multiple XLS/XLSX files with a common accounting year and optional reconciliation month:
+
+```
+POST /api/source-documents/import-batch
+multipart/form-data:
+  year=2026
+  month=9
+  files[]=...
+  files[]=...
+```
+
+The importer detects the workbook type across all worksheets, stores the original document and source records, then translates supported workbook structures into normalized financial facts. A batch response reports successful and failed files independently so one problematic workbook does not hide the others.
+
+A reconciliation may exist more than once for the same year, SKPD, and month. The model therefore does not enforce uniqueness on that combination. `reconciliation_type` distinguishes `REGULAR`, `ADDENDUM`, and `STAGED` cases, with an optional sequence number.
