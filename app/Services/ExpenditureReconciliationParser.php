@@ -98,6 +98,8 @@ class ExpenditureReconciliationParser
                 'payload' => $this->payload($row, $columns),
             ]);
 
+            $factIdsByMetric = [];
+
             foreach (self::METRICS as $label => $metric) {
                 $index = $columns[mb_strtolower($label)] ?? null;
 
@@ -111,12 +113,14 @@ class ExpenditureReconciliationParser
                     continue;
                 }
 
-                FinancialFact::create([
+                $fact = FinancialFact::create([
                     'source_document_id' => $document->id,
                     'source_record_id' => $record->id,
                     'accounting_year_id' => $yearId,
                     'skpd_id' => $skpd?->id,
                     'period' => 'UNKNOWN',
+            'month' => null,
+                    'month' => null,
                     'source_type' => 'expenditure_reconciliation',
                     'transaction_type' => $this->transactionType($label),
                     'account_code' => null,
@@ -128,7 +132,14 @@ class ExpenditureReconciliationParser
                         'skpd_name' => $name,
                         'origin' => 'reported',
                     ],
+                    'lineage' => [
+                        'origin' => 'reported',
+                        'source_record_id' => $record->id,
+                        'source_document_id' => $document->id,
+                    ],
                 ]);
+
+                $factIdsByMetric[$metric] = $fact->id;
             }
 
             $this->derivedFact(
@@ -139,7 +150,8 @@ class ExpenditureReconciliationParser
                 $code,
                 $name,
                 'total_sp2d_derived',
-                $this->sum($row, $columns, ['sp2d ls', 'sp2d up/gu', 'sp2d tu', 'sp2d kkpd'])
+                $this->sum($row, $columns, ['sp2d ls', 'sp2d up/gu', 'sp2d tu', 'sp2d kkpd']),
+                array_values(array_filter(array_map(fn ($metric) => $factIdsByMetric[$metric] ?? null, ['sp2d_ls', 'sp2d_up_gu', 'sp2d_tu', 'sp2d_kkpd'])))
             );
 
             $this->derivedFact(
@@ -150,7 +162,8 @@ class ExpenditureReconciliationParser
                 $code,
                 $name,
                 'total_spj_derived',
-                $this->sum($row, $columns, ['spj ls', 'spj up/gu', 'spj tu', 'spj kkpd'])
+                $this->sum($row, $columns, ['spj ls', 'spj up/gu', 'spj tu', 'spj kkpd']),
+                array_values(array_filter(array_map(fn ($metric) => $factIdsByMetric[$metric] ?? null, ['spj_ls', 'spj_up_gu', 'spj_tu', 'spj_kkpd'])))
             );
 
             $this->derivedFact(
@@ -161,7 +174,8 @@ class ExpenditureReconciliationParser
                 $code,
                 $name,
                 'total_sts_derived',
-                $this->sum($row, $columns, ['sts up/gu', 'sts tu', 'cp ls', 'cp up/gu', 'cp tu'])
+                $this->sum($row, $columns, ['sts up/gu', 'sts tu', 'cp ls', 'cp up/gu', 'cp tu']),
+                array_values(array_filter(array_map(fn ($metric) => $factIdsByMetric[$metric] ?? null, ['sts_up_gu', 'sts_tu', 'cp_ls', 'cp_up_gu', 'cp_tu'])))
             );
 
             $this->derivedFact(
@@ -172,7 +186,8 @@ class ExpenditureReconciliationParser
                 $code,
                 $name,
                 'kas_balance_derived',
-                $this->sum($row, $columns, ['kas sipd', 'kas bank', 'kas tunai'])
+                $this->sum($row, $columns, ['kas sipd', 'kas bank', 'kas tunai']),
+                array_values(array_filter(array_map(fn ($metric) => $factIdsByMetric[$metric] ?? null, ['kas_sipd', 'kas_bank', 'kas_tunai'])))
             );
 
             $this->derivedFact(
@@ -183,7 +198,8 @@ class ExpenditureReconciliationParser
                 $code,
                 $name,
                 'selisih_kas_derived',
-                $this->difference($row, $columns, 'kas sipd', 'kas bank')
+                $this->difference($row, $columns, 'kas sipd', 'kas bank'),
+                array_values(array_filter(array_map(fn ($metric) => $factIdsByMetric[$metric] ?? null, ['kas_sipd', 'kas_bank'])))
             );
 
             $count++;
@@ -200,7 +216,8 @@ class ExpenditureReconciliationParser
         string $code,
         string $name,
         string $metric,
-        float $value
+        float $value,
+        array $inputFactIds = []
     ): void {
         FinancialFact::create([
             'source_document_id' => $document->id,
@@ -217,6 +234,10 @@ class ExpenditureReconciliationParser
                 'skpd_code' => $code,
                 'skpd_name' => $name,
                 'origin' => 'derived',
+            ],
+            'lineage' => [
+                'origin' => 'derived',
+                'input_fact_ids' => $inputFactIds,
             ],
         ]);
     }
