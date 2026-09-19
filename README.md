@@ -9,7 +9,9 @@ Aplikasi sederhana untuk rekonsiliasi akuntansi pemerintah daerah.
 - Master pejabat
 - User management dan pembatasan akses berdasarkan SKPD
 - Data sumber pengesahan pendapatan dan belanja
-- Proses rekonsiliasi oleh SKPKD/admin
+- Proses rekonsiliasi bulanan oleh SKPKD/admin (tahun + SKPD + bulan)
+- Import source workbook → normalized financial facts → calculation → reconciliation → exception review → BA
+- Drill-down lineage dari hasil rekonsiliasi ke file, sheet, baris, dan financial fact sumber
 - Berita Acara (BA) rekonsiliasi
 - Snapshot rekonsiliasi immutable pada saat BA dibuat
 - Fondasi sumber data penambahan aset dari Bidang Aset/BMD (format menyusul)
