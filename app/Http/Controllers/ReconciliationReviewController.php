@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ReconciliationResult;
 use App\Models\ReconciliationReview;
+use App\Services\ReconciliationLineageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -36,17 +37,37 @@ class ReconciliationReviewController extends Controller
             $query->where('skpd_id', $request->integer('skpd_id'));
         }
 
+        if ($request->filled('month')) {
+            $query->where('month', $request->integer('month'));
+        }
+
         return response()->json($query->paginate(50));
+    }
+
+    public function show(
+        Request $request,
+        ReconciliationResult $reconciliationResult,
+        ReconciliationLineageService $lineageService,
+    ): JsonResponse {
+        $this->assertCanAccess($request, $reconciliationResult);
+
+        return response()->json([
+            'result' => $reconciliationResult->load([
+                'run.year:id,year',
+                'rule:id,code,name,category,tolerance,expression,input_metrics',
+                'skpd:id,code,name',
+                'sourceDocument:id,original_filename,document_type,source_category',
+                'reviews.reviewer:id,name,email',
+            ]),
+            'lineage' => $lineageService->resolve($reconciliationResult),
+        ]);
     }
 
     public function review(Request $request, ReconciliationResult $reconciliationResult): JsonResponse
     {
         $user = $request->user();
 
-        abort_unless(
-            $user->isAdmin() || $user->skpd_id === $reconciliationResult->skpd_id,
-            403
-        );
+        $this->assertCanAccess($request, $reconciliationResult);
 
         abort_if($reconciliationResult->run->status !== 'completed', 422, 'Reconciliation run is not completed.');
 
@@ -66,5 +87,13 @@ class ReconciliationReviewController extends Controller
         ]);
 
         return response()->json($review->load('reviewer:id,name,email'), 201);
+    }
+
+    private function assertCanAccess(Request $request, ReconciliationResult $result): void
+    {
+        abort_unless(
+            $request->user()->isAdmin() || $request->user()->skpd_id === $result->skpd_id,
+            403
+        );
     }
 }
