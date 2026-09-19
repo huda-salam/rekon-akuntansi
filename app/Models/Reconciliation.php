@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class Reconciliation extends Model
 {
     protected $fillable = [
-        'accounting_year_id','skpd_id','month','status','period_start','period_end','notes','finalized_at',
+        'accounting_year_id','skpd_id','month','reconciliation_type','sequence','status','period_start','period_end','notes','finalized_at',
     ];
 
     protected $casts = [
