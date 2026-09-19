@@ -14,6 +14,8 @@ class ReconciliationSnapshot extends Model
         'skpd_code',
         'skpd_name',
         'month',
+        'reconciliation_type',
+        'sequence',
         'period_start',
         'period_end',
         'notes',
