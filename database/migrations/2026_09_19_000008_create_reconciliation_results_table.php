@@ -12,8 +12,8 @@ return new class extends Migration
             $table->id();
             $table->foreignId('reconciliation_run_id')->constrained('reconciliation_runs')->cascadeOnDelete();
             $table->foreignId('reconciliation_rule_id')->constrained('reconciliation_rules')->restrictOnDelete();
-            $table->foreignId('source_document_id')->nullable()->constrained('source_documents')->nullOnDelete();
-            $table->foreignId('skpd_id')->nullable()->constrained('skpds')->nullOnDelete();
+            $table->foreignId('source_document_id')->nullable()->constrained('source_documents')->restrictOnDelete();
+            $table->foreignId('skpd_id')->nullable()->constrained('skpds')->restrictOnDelete();
             $table->string('period', 30)->nullable();
             $table->string('status', 30);
             $table->decimal('expected_value', 24, 2)->nullable();
