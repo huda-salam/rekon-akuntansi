@@ -7,6 +7,7 @@ use App\Models\Reconciliation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class ReconciliationCrudController extends Controller
@@ -18,6 +19,12 @@ class ReconciliationCrudController extends Controller
         $data = $request->validate([
             'accounting_year_id' => ['required', 'exists:accounting_years,id'],
             'skpd_id' => ['required', 'exists:skpds,id'],
+            'month' => ['nullable', 'integer', 'between:1,12'],
+            'reconciliation_type' => ['nullable', Rule::in(['REGULAR', 'ADDENDUM', 'STAGED'])],
+            'sequence' => ['nullable', 'integer', 'min:1'],
+            'month' => ['nullable', 'integer', 'between:1,12'],
+            'reconciliation_type' => [Rule::in(['REGULAR', 'ADDENDUM', 'STAGED'])],
+            'sequence' => ['nullable', 'integer', 'min:1'],
             'period_start' => ['nullable', 'date'],
             'period_end' => ['nullable', 'date', 'after_or_equal:period_start'],
             'notes' => ['nullable', 'string'],
@@ -37,6 +44,9 @@ class ReconciliationCrudController extends Controller
             $reconciliation = Reconciliation::create([
                 'accounting_year_id' => $data['accounting_year_id'],
                 'skpd_id' => $data['skpd_id'],
+                'month' => $data['month'] ?? null,
+                'reconciliation_type' => $data['reconciliation_type'] ?? 'REGULAR',
+                'sequence' => $data['sequence'] ?? null,
                 'status' => 'draft',
                 'period_start' => $data['period_start'] ?? null,
                 'period_end' => $data['period_end'] ?? null,
@@ -81,6 +91,9 @@ class ReconciliationCrudController extends Controller
 
         DB::transaction(function () use ($reconciliation, $data, $details) {
             $reconciliation->update([
+                'month' => $data['month'] ?? $reconciliation->month,
+                'reconciliation_type' => $data['reconciliation_type'] ?? $reconciliation->reconciliation_type,
+                'sequence' => $data['sequence'] ?? $reconciliation->sequence,
                 'period_start' => $data['period_start'] ?? $reconciliation->period_start,
                 'period_end' => $data['period_end'] ?? $reconciliation->period_end,
                 'notes' => $data['notes'] ?? $reconciliation->notes,
