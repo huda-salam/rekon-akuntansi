@@ -13,6 +13,7 @@ class ReconciliationSnapshot extends Model
         'accounting_year',
         'skpd_code',
         'skpd_name',
+        'month',
         'period_start',
         'period_end',
         'notes',
