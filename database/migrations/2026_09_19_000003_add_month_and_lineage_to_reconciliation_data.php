@@ -26,14 +26,14 @@ return new class extends Migration
 
         Schema::table('reconciliations', function (Blueprint $table) {
             $table->unsignedTinyInteger('month')->nullable()->after('skpd_id');
-            $table->unique(['accounting_year_id', 'month', 'skpd_id'], 'reconciliations_year_month_skpd_unique');
+            $table->index(['accounting_year_id', 'month', 'skpd_id']);
         });
     }
 
     public function down(): void
     {
         Schema::table('reconciliations', function (Blueprint $table) {
-            $table->dropUnique('reconciliations_year_month_skpd_unique');
+            $table->dropIndex(['accounting_year_id', 'month', 'skpd_id']);
             $table->dropColumn('month');
         });
 
