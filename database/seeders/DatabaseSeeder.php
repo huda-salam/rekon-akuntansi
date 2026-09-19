@@ -35,5 +35,7 @@ class DatabaseSeeder extends Seeder
             ['email' => 'skpd@example.test'],
             ['name' => 'User SKPD Demo', 'password' => 'password', 'role' => 'skpd', 'skpd_id' => $skpd->id]
         );
+
+        $this->call(ReconciliationRuleSeeder::class);
     }
 }
