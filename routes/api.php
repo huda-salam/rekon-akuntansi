@@ -9,6 +9,7 @@ use App\Http\Controllers\MasterDataImportController;
 use App\Http\Controllers\MasterReferenceController;
 use App\Http\Controllers\OfficialAdminController;
 use App\Http\Controllers\ReconciliationController;
+use App\Http\Controllers\ReconciliationReviewController;
 use App\Http\Controllers\ReconciliationCrudController;
 use App\Http\Controllers\SkpdAdminController;
 use App\Http\Controllers\SourceDocumentController;
@@ -38,6 +39,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/authorizations', [AuthorizationSourceController::class, 'store']);
 
     Route::get('/reconciliations', [ReconciliationController::class, 'index']);
+    Route::get('/reconciliation-results', [ReconciliationReviewController::class, 'index']);
+    Route::post('/reconciliation-results/{reconciliationResult}/review', [ReconciliationReviewController::class, 'review']);
     Route::get('/reconciliation-runs', [ReconciliationController::class, 'runs']);
     Route::post('/reconciliation-runs', [ReconciliationController::class, 'run']);
     Route::get('/reconciliation-runs/{reconciliationRun}', [ReconciliationController::class, 'runShow']);
