@@ -42,8 +42,6 @@ class FinalizeReconciliationService
                 'month' => $reconciliation->month,
                 'reconciliation_type' => $reconciliation->reconciliation_type,
                 'sequence' => $reconciliation->sequence,
-                'reconciliation_type' => $reconciliation->reconciliation_type,
-                'sequence' => $reconciliation->sequence,
                 'period_start' => $reconciliation->period_start?->toDateString(),
                 'period_end' => $reconciliation->period_end?->toDateString(),
                 'notes' => $reconciliation->notes,
