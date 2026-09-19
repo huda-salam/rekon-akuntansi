@@ -26,7 +26,8 @@ class ReconciliationEngine
                     'reconciliation_rule_id' => $rule->id,
                     'source_document_id' => $recordFacts->first()->source_document_id,
                     'skpd_id' => $recordFacts->first()->skpd_id,
-                    'period' => $recordFacts->first()->period,
+                    'month' => $run->month ?? $recordFacts->first()->month,
+                    'period' => $this->period($run->year?->year, $run->month ?? $recordFacts->first()->month),
                 ];
 
                 if (! $this->ruleApplies($rule, $recordFacts)) {
@@ -70,6 +71,7 @@ class ReconciliationEngine
                         'inputs' => $calculation['inputs'],
                         'lineage' => [
                             'financial_fact_ids' => $calculation['lineage'],
+                            'rule_expression' => $rule->expression,
                         ],
                     ]);
                 } catch (Throwable $exception) {
@@ -104,5 +106,12 @@ class ReconciliationEngine
         return collect($rule->input_metrics ?? [])->every(
             fn ($metric) => $facts->contains('metric', $metric)
         );
+    }
+
+    private function period(?int $year, ?int $month): string
+    {
+        return $year !== null && $month !== null
+            ? sprintf('%04d-%02d', $year, $month)
+            : 'UNKNOWN';
     }
 }
