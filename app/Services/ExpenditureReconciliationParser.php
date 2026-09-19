@@ -7,7 +7,6 @@ use App\Models\FinancialFact;
 use App\Models\Skpd;
 use App\Models\SourceDocument;
 use App\Models\SourceRecord;
-use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
 class ExpenditureReconciliationParser
@@ -38,11 +37,13 @@ class ExpenditureReconciliationParser
     public function supports(Collection $rows): bool
     {
         $header = $rows->first(fn ($row) => mb_strtolower(trim((string) ($row[0] ?? ''))) === 'no');
+
         if (! $header) {
             return false;
         }
 
         $labels = collect($header)->map(fn ($v) => mb_strtolower(trim((string) $v)));
+
         return $labels->contains('kode')
             && $labels->contains('skpd')
             && $labels->contains('sp2d ls')
@@ -52,29 +53,43 @@ class ExpenditureReconciliationParser
 
     public function parse(Collection $rows, SourceDocument $document, int $year): int
     {
-        $headerIndex = $rows->search(fn ($row) => mb_strtolower(trim((string) ($row[0] ?? ''))) === 'no');
+        $yearId = AccountingYear::query()->where('year', $year)->value('id');
+
+        if (! $yearId) {
+            throw new \InvalidArgumentException("Tahun {$year} tidak ditemukan.");
+        }
+
+        $headerIndex = $rows->search(
+            fn ($row) => mb_strtolower(trim((string) ($row[0] ?? ''))) === 'no'
+        );
+
         if ($headerIndex === false) {
             throw new \InvalidArgumentException('Header rekonsiliasi pengeluaran tidak ditemukan.');
         }
 
         $header = $rows->get($headerIndex);
         $columns = [];
+
         foreach ($header as $index => $label) {
             $normalized = mb_strtolower(trim((string) $label));
+
             if ($normalized !== '') {
                 $columns[$normalized] = $index;
             }
         }
 
         $count = 0;
+
         foreach ($rows->slice($headerIndex + 1) as $offset => $row) {
             $code = trim((string) ($row[$columns['kode']] ?? ''));
             $name = trim((string) ($row[$columns['skpd']] ?? ''));
+
             if ($code === '' || mb_strtolower($code) === 'grand total') {
                 continue;
             }
 
             $skpd = Skpd::query()->where('code', $code)->first();
+
             $record = SourceRecord::create([
                 'source_document_id' => $document->id,
                 'source_row' => $headerIndex + $offset + 2,
@@ -85,11 +100,13 @@ class ExpenditureReconciliationParser
 
             foreach (self::METRICS as $label => $metric) {
                 $index = $columns[mb_strtolower($label)] ?? null;
+
                 if ($index === null) {
                     continue;
                 }
 
                 $value = $this->number($row[$index] ?? null);
+
                 if ($value === null) {
                     continue;
                 }
@@ -97,7 +114,7 @@ class ExpenditureReconciliationParser
                 FinancialFact::create([
                     'source_document_id' => $document->id,
                     'source_record_id' => $record->id,
-                    'accounting_year_id' => AccountingYear::query()->where('year', $year)->value('id'),
+                    'accounting_year_id' => $yearId,
                     'skpd_id' => $skpd?->id,
                     'period' => 'UNKNOWN',
                     'source_type' => 'expenditure_reconciliation',
@@ -106,38 +123,101 @@ class ExpenditureReconciliationParser
                     'metric' => $metric,
                     'value' => $value,
                     'unit' => 'IDR',
-                    'dimensions' => ['skpd_code'=>$code, 'skpd_name'=>$name, 'origin'=>'reported'],
+                    'dimensions' => [
+                        'skpd_code' => $code,
+                        'skpd_name' => $name,
+                        'origin' => 'reported',
+                    ],
                 ]);
             }
 
-            $this->derivedFact($document, $record, $year, $skpd, $code, $name, 'total_sp2d_derived',
-                $this->sum($row, $columns, ['sp2d ls','sp2d up/gu','sp2d tu','sp2d kkpd']));
-            $this->derivedFact($document, $record, $year, $skpd, $code, $name, 'total_spj_derived',
-                $this->sum($row, $columns, ['spj ls','spj up/gu','spj tu','spj kkpd']));
-            $this->derivedFact($document, $record, $year, $skpd, $code, $name, 'total_sts_derived',
-                $this->sum($row, $columns, ['sts up/gu','sts tu','cp ls','cp up/gu','cp tu']));
-            $this->derivedFact($document, $record, $year, $skpd, $code, $name, 'kas_balance_derived',
-                $this->sum($row, $columns, ['kas sipd','kas bank','kas tunai']));
+            $this->derivedFact(
+                $document,
+                $record,
+                $yearId,
+                $skpd,
+                $code,
+                $name,
+                'total_sp2d_derived',
+                $this->sum($row, $columns, ['sp2d ls', 'sp2d up/gu', 'sp2d tu', 'sp2d kkpd'])
+            );
+
+            $this->derivedFact(
+                $document,
+                $record,
+                $yearId,
+                $skpd,
+                $code,
+                $name,
+                'total_spj_derived',
+                $this->sum($row, $columns, ['spj ls', 'spj up/gu', 'spj tu', 'spj kkpd'])
+            );
+
+            $this->derivedFact(
+                $document,
+                $record,
+                $yearId,
+                $skpd,
+                $code,
+                $name,
+                'total_sts_derived',
+                $this->sum($row, $columns, ['sts up/gu', 'sts tu', 'cp ls', 'cp up/gu', 'cp tu'])
+            );
+
+            $this->derivedFact(
+                $document,
+                $record,
+                $yearId,
+                $skpd,
+                $code,
+                $name,
+                'kas_balance_derived',
+                $this->sum($row, $columns, ['kas sipd', 'kas bank', 'kas tunai'])
+            );
+
+            $this->derivedFact(
+                $document,
+                $record,
+                $yearId,
+                $skpd,
+                $code,
+                $name,
+                'selisih_kas_derived',
+                $this->difference($row, $columns, 'kas sipd', 'kas bank')
+            );
+
             $count++;
         }
 
         return $count;
     }
 
-    private function derivedFact(SourceDocument $document, SourceRecord $record, int $year, ?Skpd $skpd, string $code, string $name, string $metric, float $value): void
-    {
+    private function derivedFact(
+        SourceDocument $document,
+        SourceRecord $record,
+        int $yearId,
+        ?Skpd $skpd,
+        string $code,
+        string $name,
+        string $metric,
+        float $value
+    ): void {
         FinancialFact::create([
-            'source_document_id'=>$document->id,
-            'source_record_id'=>$record->id,
-            'accounting_year_id'=>AccountingYear::query()->where('year',$year)->value('id'),
-            'skpd_id'=>$skpd?->id,
-            'period'=>'UNKNOWN',
-            'source_type'=>'expenditure_reconciliation',
-            'transaction_type'=>'calculation',
-            'metric'=>$metric,
-            'value'=>$value,
-            'unit'=>'IDR',
-            'dimensions'=>['skpd_code'=>$code,'skpd_name'=>$name,'origin'=>'derived'],
+            'source_document_id' => $document->id,
+            'source_record_id' => $record->id,
+            'accounting_year_id' => $yearId,
+            'skpd_id' => $skpd?->id,
+            'period' => 'UNKNOWN',
+            'source_type' => 'expenditure_reconciliation',
+            'transaction_type' => 'calculation',
+            'metric' => $metric,
+            'value' => $value,
+            'unit' => 'IDR',
+            'dimensions' => [
+                'skpd_code' => $code,
+                'skpd_name' => $name,
+                'origin' => 'derived',
+            ],
         ]);
     }
 
@@ -152,29 +232,47 @@ class ExpenditureReconciliationParser
     private function sum(array|Collection $row, array $columns, array $labels): float
     {
         $total = 0.0;
+
         foreach ($labels as $label) {
             $index = $columns[$label] ?? null;
+
             if ($index !== null) {
                 $total += $this->number($row[$index] ?? null) ?? 0.0;
             }
         }
+
         return $total;
+    }
+
+    private function difference(array|Collection $row, array $columns, string $left, string $right): float
+    {
+        return ($this->number($row[$columns[$left]] ?? null) ?? 0.0)
+            - ($this->number($row[$columns[$right]] ?? null) ?? 0.0);
     }
 
     private function number(mixed $value): ?float
     {
-        if ($value === null || trim((string) $value) === '') return null;
-        if (is_numeric($value)) return (float) $value;
+        if ($value === null || trim((string) $value) === '') {
+            return null;
+        }
+
+        if (is_numeric($value)) {
+            return (float) $value;
+        }
+
         $normalized = str_replace(['.', ','], ['', '.'], trim((string) $value));
+
         return is_numeric($normalized) ? (float) $normalized : null;
     }
 
     private function payload(array|Collection $row, array $columns): array
     {
         $payload = [];
+
         foreach ($columns as $label => $index) {
             $payload[$label] = $row[$index] ?? null;
         }
+
         return $payload;
     }
 }
