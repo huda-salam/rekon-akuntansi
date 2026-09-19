@@ -11,6 +11,7 @@ use App\Http\Controllers\OfficialAdminController;
 use App\Http\Controllers\ReconciliationController;
 use App\Http\Controllers\ReconciliationCrudController;
 use App\Http\Controllers\SkpdAdminController;
+use App\Http\Controllers\SourceDocumentController;
 use App\Http\Controllers\UserAdminController;
 use Illuminate\Support\Facades\Route;
 
@@ -30,6 +31,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('/officials', OfficialAdminController::class)->only(['index', 'store', 'update']);
     Route::post('/master-data/import', [MasterDataImportController::class, 'store']);
     Route::get('/master-references', [MasterReferenceController::class, 'index']);
+    Route::get('/source-documents', [SourceDocumentController::class, 'index']);
+    Route::post('/source-documents/import', [SourceDocumentController::class, 'store']);
 
     Route::get('/authorizations', [AuthorizationSourceController::class, 'index']);
     Route::post('/authorizations', [AuthorizationSourceController::class, 'store']);
