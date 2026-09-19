@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class ReconciliationResult extends Model
 {
     protected $fillable = [
-        'reconciliation_run_id','reconciliation_rule_id','source_document_id','skpd_id',
+        'reconciliation_run_id','reconciliation_rule_id','source_document_id','skpd_id','month',
         'period','status','expected_value','actual_value','variance','inputs','lineage','explanation',
     ];
 
