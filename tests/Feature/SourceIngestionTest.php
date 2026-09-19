@@ -38,9 +38,15 @@ class SourceIngestionTest extends TestCase
             [46,$skpd->code,$skpd->name,100,20,0,0,120,100,15,0,0,115,0,0,0,0,0,0,5,5,0,0,'SUDAH'],
         ]);
 
-        $count = app(ExpenditureReconciliationParser::class)->parse($rows, $document, 2026);
+        $count = app(ExpenditureReconciliationParser::class)->parse($rows, $document, 2026, 9);
 
         $this->assertSame(1, $count);
+
+        $this->assertDatabaseHas('financial_facts', [
+            'source_document_id' => $document->id,
+            'month' => 9,
+            'period' => '2026-09',
+        ]);
 
         $this->assertDatabaseHas('source_records', [
             'source_document_id' => $document->id,
@@ -75,4 +81,45 @@ class SourceIngestionTest extends TestCase
             'value' => 0,
         ]);
     }
+
+    public function test_generic_parser_normalizes_supported_non_expenditure_workbook_rows_and_numeric_facts(): void
+    {
+        $year = AccountingYear::create(['year' => 2026, 'is_active' => true]);
+
+        $document = SourceDocument::create([
+            'accounting_year_id' => $year->id,
+            'original_filename' => 'neraca.xlsx',
+            'document_type' => 'financial_statement',
+            'source_category' => 'ACCOUNTING',
+            'checksum_sha256' => hash('sha256', 'neraca-fixture'),
+            'status' => 'IMPORTED',
+        ]);
+
+        $sheets = new Collection([
+            'Neraca' => new Collection([
+                ['NERACA'],
+                ['KODE REKENING', 'URAIAN', 'SALDO'],
+                ['1.01', 'Kas', 125000],
+            ]),
+        ]);
+
+        $count = app(\App\Services\GenericWorkbookParser::class)->parse($sheets, $document, 2026, 9);
+
+        $this->assertSame(1, $count);
+
+        $this->assertDatabaseHas('source_records', [
+            'source_document_id' => $document->id,
+            'sheet_name' => 'Neraca',
+            'source_row' => 3,
+        ]);
+
+        $this->assertDatabaseHas('financial_facts', [
+            'source_document_id' => $document->id,
+            'metric' => 'saldo',
+            'value' => 125000,
+            'month' => 9,
+            'account_code' => '1.01',
+        ]);
+    }
+
 }
