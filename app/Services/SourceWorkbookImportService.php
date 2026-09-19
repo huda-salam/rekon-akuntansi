@@ -17,15 +17,26 @@ class SourceWorkbookImportService
     public function __construct(
         private readonly SourceDocumentDetector $detector,
         private readonly ExpenditureReconciliationParser $expenditureParser,
+        private readonly GenericWorkbookParser $genericParser,
     ) {}
 
-    public function execute(UploadedFile $file, int $year, int $userId): SourceDocument
-    {
+    public function execute(
+        UploadedFile $file,
+        int $year,
+        int $userId,
+        ?int $month = null,
+    ): SourceDocument {
         $accountingYear = AccountingYear::query()->where('year', $year)->first();
 
         if (! $accountingYear) {
             throw ValidationException::withMessages([
                 'year' => "Tahun anggaran {$year} belum tersedia.",
+            ]);
+        }
+
+        if ($month !== null && ($month < 1 || $month > 12)) {
+            throw ValidationException::withMessages([
+                'month' => 'Bulan harus berada pada rentang 1 sampai 12.',
             ]);
         }
 
@@ -38,37 +49,12 @@ class SourceWorkbookImportService
         }
 
         $spreadsheet = IOFactory::load($file->getRealPath());
-        $sheets = new Collection();
-
-        foreach ($spreadsheet->getWorksheetIterator() as $worksheet) {
-            $rows = collect();
-
-            foreach ($worksheet->toArray(null, true, true, false) as $row) {
-                $rows->push(array_values($row));
-            }
-
-            $sheets->put($worksheet->getTitle(), $rows);
-        }
-
+        $sheets = $this->readSheets($spreadsheet);
         $detection = $this->detector->detect($sheets);
 
         if ($detection['type'] === 'unknown') {
             throw ValidationException::withMessages([
                 'file' => 'Jenis workbook belum didukung atau strukturnya tidak dikenali.',
-            ]);
-        }
-
-        if ($detection['type'] !== 'expenditure_reconciliation') {
-            throw ValidationException::withMessages([
-                'file' => "Workbook terdeteksi sebagai {$detection['type']}, tetapi parser untuk jenis tersebut belum tersedia.",
-            ]);
-        }
-
-        $firstSheetRows = $sheets->first();
-
-        if (! $firstSheetRows instanceof Collection || ! $this->expenditureParser->supports($firstSheetRows)) {
-            throw ValidationException::withMessages([
-                'file' => 'Workbook terdeteksi sebagai rekonsiliasi pengeluaran, tetapi struktur tabelnya tidak valid.',
             ]);
         }
 
@@ -80,14 +66,8 @@ class SourceWorkbookImportService
 
         try {
             return DB::transaction(function () use (
-                $file,
-                $checksum,
-                $accountingYear,
-                $userId,
-                $firstSheetRows,
-                $sheets,
-                $detection,
-                $path
+                $file, $checksum, $accountingYear, $userId, $month,
+                $sheets, $detection, $path
             ) {
                 $document = SourceDocument::create([
                     'accounting_year_id' => $accountingYear->id,
@@ -103,16 +83,12 @@ class SourceWorkbookImportService
                     'metadata' => [
                         'sheets' => $sheets->keys()->values()->all(),
                         'detection' => $detection,
+                        'requested_month' => $month,
                     ],
                     'imported_at' => now(),
                 ]);
 
-                $count = $this->expenditureParser->parse(
-                    $firstSheetRows,
-                    $document,
-                    $accountingYear->year
-                );
-
+                $count = $this->parse($detection['type'], $sheets, $document, $accountingYear->year, $month);
                 $document->update(['row_count' => $count]);
 
                 return $document->fresh();
@@ -121,5 +97,71 @@ class SourceWorkbookImportService
             Storage::disk('local')->delete($path);
             throw $e;
         }
+    }
+
+    /**
+     * @param array<int, UploadedFile> $files
+     * @return array{imported: array<int, SourceDocument>, failed: array<int, array<string,mixed>>}
+     */
+    public function executeBatch(
+        array $files,
+        int $year,
+        int $userId,
+        ?int $month = null,
+    ): array {
+        $imported = [];
+        $failed = [];
+
+        foreach ($files as $file) {
+            try {
+                $imported[] = $this->execute($file, $year, $userId, $month);
+            } catch (Throwable $e) {
+                $failed[] = [
+                    'filename' => $file->getClientOriginalName(),
+                    'message' => $e->getMessage(),
+                ];
+            }
+        }
+
+        return compact('imported', 'failed');
+    }
+
+    private function parse(
+        string $type,
+        Collection $sheets,
+        SourceDocument $document,
+        int $year,
+        ?int $month,
+    ): int {
+        if ($type === 'expenditure_reconciliation') {
+            foreach ($sheets as $sheetName => $rows) {
+                if ($this->expenditureParser->supports($rows)) {
+                    return $this->expenditureParser->parse($rows, $document, $year, $month, $sheetName);
+                }
+            }
+
+            throw ValidationException::withMessages([
+                'file' => 'Workbook rekonsiliasi pengeluaran terdeteksi, tetapi tabel sumber tidak ditemukan.',
+            ]);
+        }
+
+        return $this->genericParser->parse($sheets, $document, $year, $month);
+    }
+
+    private function readSheets($spreadsheet): Collection
+    {
+        $sheets = new Collection();
+
+        foreach ($spreadsheet->getWorksheetIterator() as $worksheet) {
+            $rows = collect();
+
+            foreach ($worksheet->toArray(null, true, true, false) as $row) {
+                $rows->push(array_values($row));
+            }
+
+            $sheets->put($worksheet->getTitle(), $rows);
+        }
+
+        return $sheets;
     }
 }
