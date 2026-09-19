@@ -7,7 +7,6 @@ use App\Models\ReconciliationRule;
 use App\Models\ReconciliationRun;
 use App\Models\SourceDocument;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use RuntimeException;
 use Throwable;
 
@@ -18,6 +17,7 @@ class ReconciliationRunService
         int $startedBy,
         array $sourceDocumentIds = [],
         array $parameters = [],
+        ?int $month = null,
     ): ReconciliationRun {
         $documents = SourceDocument::query()
             ->where('accounting_year_id', $yearId)
@@ -50,22 +50,24 @@ class ReconciliationRunService
 
         $run = ReconciliationRun::create([
             'accounting_year_id' => $yearId,
+            'month' => $month,
             'started_by' => $startedBy,
             'status' => 'running',
             'started_at' => now(),
             'source_document_ids' => $documentIds,
-            'parameters' => $parameters,
+            'parameters' => $parameters + ['month' => $month],
         ]);
 
         try {
             $facts = FinancialFact::query()
                 ->where('accounting_year_id', $yearId)
+                ->when($month !== null, fn ($query) => $query->where('month', $month))
                 ->whereIn('source_document_id', $documentIds)
                 ->whereIn('source_type', ['expenditure_reconciliation', 'rekonsiliasi_pengeluaran'])
                 ->get();
 
             if ($facts->isEmpty()) {
-                throw new RuntimeException('The selected source document has no imported financial facts.');
+                throw new RuntimeException('The selected source document has no imported financial facts for the requested period.');
             }
 
             app(ReconciliationEngine::class)->run($run, $rules, $facts);
@@ -82,10 +84,11 @@ class ReconciliationRunService
         }
     }
 
-    public function listForUser($user, int $yearId): Collection
+    public function listForUser($user, int $yearId, ?int $month = null): Collection
     {
         $query = ReconciliationRun::query()
             ->where('accounting_year_id', $yearId)
+            ->when($month !== null, fn ($query) => $query->where('month', $month))
             ->withCount([
                 'results',
                 'results as pass_results_count' => fn ($query) => $query->where('status', 'PASS'),
