@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::table('financial_facts', function (Blueprint $table) {
             $table->unsignedTinyInteger('month')->nullable()->after('period');
             $table->json('lineage')->nullable()->after('dimensions');
-            $table->unique(['accounting_year_id', 'month', 'skpd_id'], 'reconciliations_year_month_skpd_unique');
+            $table->index(['accounting_year_id', 'month', 'skpd_id']);
         });
 
         Schema::table('reconciliation_runs', function (Blueprint $table) {
@@ -26,7 +26,7 @@ return new class extends Migration
 
         Schema::table('reconciliations', function (Blueprint $table) {
             $table->unsignedTinyInteger('month')->nullable()->after('skpd_id');
-            $table->index(['accounting_year_id', 'month', 'skpd_id']);
+            $table->unique(['accounting_year_id', 'month', 'skpd_id'], 'reconciliations_year_month_skpd_unique');
         });
     }
 
