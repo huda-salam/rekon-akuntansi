@@ -38,6 +38,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/authorizations', [AuthorizationSourceController::class, 'store']);
 
     Route::get('/reconciliations', [ReconciliationController::class, 'index']);
+    Route::get('/reconciliation-runs', [ReconciliationController::class, 'runs']);
+    Route::post('/reconciliation-runs', [ReconciliationController::class, 'run']);
+    Route::get('/reconciliation-runs/{reconciliationRun}', [ReconciliationController::class, 'runShow']);
     Route::post('/reconciliations', [ReconciliationCrudController::class, 'store']);
     Route::get('/reconciliations/{reconciliation}', [ReconciliationController::class, 'show']);
     Route::put('/reconciliations/{reconciliation}', [ReconciliationCrudController::class, 'update']);
