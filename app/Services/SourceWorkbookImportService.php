@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use Throwable;
 
 class SourceWorkbookImportService
 {
@@ -39,40 +40,45 @@ class SourceWorkbookImportService
         }
 
         $firstSheetRows = collect(array_values($sheets)[0] ?? []);
-        if ($this->expenditureParser->supports($firstSheetRows)) {
-            $type = 'expenditure_reconciliation';
-            $category = 'RKUD';
-        } else {
+        if (! $this->expenditureParser->supports($firstSheetRows)) {
             throw ValidationException::withMessages([
                 'file' => 'Jenis workbook belum didukung atau strukturnya tidak dikenali.',
             ]);
         }
 
-        return DB::transaction(function () use ($file, $checksum, $accountingYear, $userId, $type, $category, $firstSheetRows) {
-            $path = $file->storeAs(
-                'source-documents',
-                $checksum . '.' . strtolower($file->getClientOriginalExtension()),
-                'local'
-            );
+        $path = $file->storeAs(
+            'source-documents',
+            $checksum . '.' . strtolower($file->getClientOriginalExtension()),
+            'local'
+        );
 
-            $document = SourceDocument::create([
-                'accounting_year_id' => $accountingYear->id,
-                'uploaded_by' => $userId,
-                'original_filename' => $file->getClientOriginalName(),
-                'document_type' => $type,
-                'source_category' => $category,
-                'mime_type' => $file->getMimeType(),
-                'checksum_sha256' => $checksum,
-                'file_path' => $path,
-                'status' => 'IMPORTED',
-                'metadata' => ['sheets' => array_keys($GLOBALS['__source_import_sheets'] ?? [])],
-                'imported_at' => now(),
-            ]);
+        try {
+            return DB::transaction(function () use (
+                $file, $checksum, $accountingYear, $userId, $firstSheetRows, $sheets, $path
+            ) {
+                $document = SourceDocument::create([
+                    'accounting_year_id' => $accountingYear->id,
+                    'uploaded_by' => $userId,
+                    'original_filename' => $file->getClientOriginalName(),
+                    'document_type' => 'expenditure_reconciliation',
+                    'source_category' => 'RKUD',
+                    'mime_type' => $file->getMimeType(),
+                    'checksum_sha256' => $checksum,
+                    'file_path' => $path,
+                    'file_size' => $file->getSize(),
+                    'status' => 'IMPORTED',
+                    'metadata' => ['sheets' => array_keys($sheets)],
+                    'imported_at' => now(),
+                ]);
 
-            $count = $this->expenditureParser->parse($firstSheetRows, $document, $accountingYear->year);
-            $document->update(['row_count' => $count]);
+                $count = $this->expenditureParser->parse($firstSheetRows, $document, $accountingYear->year);
+                $document->update(['row_count' => $count]);
 
-            return $document->fresh();
-        });
+                return $document->fresh();
+            });
+        } catch (Throwable $e) {
+            Storage::disk('local')->delete($path);
+            throw $e;
+        }
     }
 }
