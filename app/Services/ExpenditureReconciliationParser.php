@@ -93,7 +93,7 @@ class ExpenditureReconciliationParser
             $record = SourceRecord::create([
                 'source_document_id' => $document->id,
                 'source_row' => $headerIndex + $offset + 2,
-                'sheet_name' => 'Worksheet',
+                'sheet_name' => $sheetName,
                 'record_type' => 'expenditure_reconciliation_row',
                 'payload' => $this->payload($row, $columns),
             ]);
@@ -118,8 +118,8 @@ class ExpenditureReconciliationParser
                     'source_record_id' => $record->id,
                     'accounting_year_id' => $yearId,
                     'skpd_id' => $skpd?->id,
-                    'period' => 'UNKNOWN',
-                    'month' => null,
+                    'period' => $month ? sprintf('%04d-%02d', $year, $month) : 'UNKNOWN',
+                    'month' => $month,
                     'source_type' => 'expenditure_reconciliation',
                     'transaction_type' => $this->transactionType($label),
                     'account_code' => null,
@@ -148,6 +148,7 @@ class ExpenditureReconciliationParser
                 $skpd,
                 $code,
                 $name,
+                $month,
                 'total_sp2d_derived',
                 $this->sum($row, $columns, ['sp2d ls', 'sp2d up/gu', 'sp2d tu', 'sp2d kkpd']),
                 array_values(array_filter(array_map(fn ($metric) => $factIdsByMetric[$metric] ?? null, ['sp2d_ls', 'sp2d_up_gu', 'sp2d_tu', 'sp2d_kkpd'])))
@@ -160,6 +161,7 @@ class ExpenditureReconciliationParser
                 $skpd,
                 $code,
                 $name,
+                $month,
                 'total_spj_derived',
                 $this->sum($row, $columns, ['spj ls', 'spj up/gu', 'spj tu', 'spj kkpd']),
                 array_values(array_filter(array_map(fn ($metric) => $factIdsByMetric[$metric] ?? null, ['spj_ls', 'spj_up_gu', 'spj_tu', 'spj_kkpd'])))
@@ -172,6 +174,7 @@ class ExpenditureReconciliationParser
                 $skpd,
                 $code,
                 $name,
+                $month,
                 'total_sts_derived',
                 $this->sum($row, $columns, ['sts up/gu', 'sts tu', 'cp ls', 'cp up/gu', 'cp tu']),
                 array_values(array_filter(array_map(fn ($metric) => $factIdsByMetric[$metric] ?? null, ['sts_up_gu', 'sts_tu', 'cp_ls', 'cp_up_gu', 'cp_tu'])))
@@ -184,6 +187,7 @@ class ExpenditureReconciliationParser
                 $skpd,
                 $code,
                 $name,
+                $month,
                 'kas_balance_derived',
                 $this->sum($row, $columns, ['kas sipd', 'kas bank', 'kas tunai']),
                 array_values(array_filter(array_map(fn ($metric) => $factIdsByMetric[$metric] ?? null, ['kas_sipd', 'kas_bank', 'kas_tunai'])))
@@ -196,6 +200,7 @@ class ExpenditureReconciliationParser
                 $skpd,
                 $code,
                 $name,
+                $month,
                 'selisih_kas_derived',
                 $this->difference($row, $columns, 'kas sipd', 'kas bank'),
                 array_values(array_filter(array_map(fn ($metric) => $factIdsByMetric[$metric] ?? null, ['kas_sipd', 'kas_bank'])))
@@ -214,6 +219,7 @@ class ExpenditureReconciliationParser
         ?Skpd $skpd,
         string $code,
         string $name,
+        ?int $month,
         string $metric,
         float $value,
         array $inputFactIds = []
@@ -223,8 +229,8 @@ class ExpenditureReconciliationParser
             'source_record_id' => $record->id,
             'accounting_year_id' => $yearId,
             'skpd_id' => $skpd?->id,
-            'period' => 'UNKNOWN',
-            'month' => null,
+            'period' => $month ? sprintf('%04d-%02d', $year, $month) : 'UNKNOWN',
+            'month' => $month,
             'source_type' => 'expenditure_reconciliation',
             'transaction_type' => 'calculation',
             'metric' => $metric,
