@@ -40,6 +40,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/reconciliations', [ReconciliationController::class, 'index']);
     Route::get('/reconciliation-results', [ReconciliationReviewController::class, 'index']);
+    Route::get('/reconciliation-results/{reconciliationResult}', [ReconciliationReviewController::class, 'show']);
     Route::post('/reconciliation-results/{reconciliationResult}/review', [ReconciliationReviewController::class, 'review']);
     Route::get('/reconciliation-runs', [ReconciliationController::class, 'runs']);
     Route::post('/reconciliation-runs', [ReconciliationController::class, 'run']);
