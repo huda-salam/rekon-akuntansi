@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Reconciliation;
+use App\Models\ReconciliationRun;
 use App\Services\FinalizeReconciliationService;
+use App\Services\ReconciliationRunService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use RuntimeException;
 
 class ReconciliationController extends Controller
 {
@@ -30,6 +33,76 @@ class ReconciliationController extends Controller
 
         return response()->json(
             $reconciliation->load(['accountingYear', 'skpd', 'details'])
+        );
+    }
+
+    public function runs(Request $request, ReconciliationRunService $service): JsonResponse
+    {
+        $data = $request->validate([
+            'year' => ['required', 'integer', 'between:2000,2100'],
+        ]);
+
+        $year = \App\Models\AccountingYear::query()
+            ->where('year', $data['year'])
+            ->firstOrFail();
+
+        abort_unless($request->user()->isAdmin() || $request->user()->skpd_id !== null, 403);
+
+        return response()->json([
+            'data' => $service->listForUser($request->user(), $year->id),
+        ]);
+    }
+
+    public function run(
+        Request $request,
+        ReconciliationRunService $service,
+    ): JsonResponse {
+        abort_unless($request->user()->isAdmin(), 403);
+
+        $data = $request->validate([
+            'year' => ['required', 'integer', 'between:2000,2100'],
+            'source_document_ids' => ['sometimes', 'array'],
+            'source_document_ids.*' => ['integer', 'distinct'],
+        ]);
+
+        $year = \App\Models\AccountingYear::query()
+            ->where('year', $data['year'])
+            ->firstOrFail();
+
+        try {
+            $run = $service->execute(
+                $year->id,
+                $request->user()->id,
+                $data['source_document_ids'] ?? [],
+                ['requested_year' => $data['year']],
+            );
+        } catch (RuntimeException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+
+        return response()->json($run, 201);
+    }
+
+    public function runShow(Request $request, ReconciliationRun $reconciliationRun): JsonResponse
+    {
+        abort_unless(
+            $request->user()->isAdmin()
+            || $reconciliationRun->results()->where('skpd_id', $request->user()->skpd_id)->exists(),
+            403
+        );
+
+        return response()->json(
+            $reconciliationRun->load([
+                'year:id,year',
+                'starter:id,name,email',
+                'results' => fn ($query) => $query->with([
+                    'rule:id,code,name,category,tolerance',
+                    'skpd:id,code,name',
+                    'sourceDocument:id,original_filename,document_type',
+                ])->orderBy('id'),
+            ])
         );
     }
 
