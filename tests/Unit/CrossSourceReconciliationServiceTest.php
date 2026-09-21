@@ -107,4 +107,67 @@ class CrossSourceReconciliationServiceTest extends TestCase
         $this->assertSame(0.0, $result['variance']);
         $this->assertSame('PASS', $result['status']);
     }
+
+    public function test_report_scope_excludes_working_paper_from_official_report_comparison(): void
+    {
+        $rule = new ReconciliationRule([
+            'tolerance' => 0,
+            'metadata' => [
+                'left' => [
+                    'source_type' => 'financial_statement',
+                    'canonical_metrics' => ['lra_revenue'],
+                    'period_mode' => 'annual_snapshot',
+                    'report_scope' => ['official_report'],
+                ],
+                'right' => [
+                    'source_type' => 'financial_statement',
+                    'canonical_metrics' => ['lra_revenue'],
+                    'period_mode' => 'annual_snapshot',
+                    'report_scope' => ['official_report'],
+                ],
+            ],
+        ]);
+
+        $facts = collect([
+            new FinancialFact([
+                'source_document_id' => 1,
+                'skpd_id' => 7,
+                'month' => null,
+                'source_type' => 'financial_statement',
+                'transaction_type' => 'LRA',
+                'account_code' => '4',
+                'value' => 1000,
+                'dimensions' => [
+                    'statement' => 'LRA',
+                    'description' => 'PENDAPATAN DAERAH',
+                    'column' => 'REALISASI',
+                    'summary_row' => true,
+                    'report_scope' => 'official_report',
+                ],
+            ]),
+            new FinancialFact([
+                'source_document_id' => 2,
+                'skpd_id' => 7,
+                'month' => null,
+                'source_type' => 'financial_statement',
+                'transaction_type' => 'LRA',
+                'account_code' => '4',
+                'value' => 9000,
+                'dimensions' => [
+                    'statement' => 'LRA',
+                    'description' => 'PENDAPATAN DAERAH',
+                    'column' => 'KONSOLIDASI',
+                    'summary_row' => true,
+                    'report_scope' => 'working_paper',
+                ],
+            ]),
+        ]);
+
+        $result = app(CrossSourceReconciliationService::class)->compare($facts, $rule, 7, null);
+
+        $this->assertSame(1000.0, $result['left']);
+        $this->assertSame(1000.0, $result['right']);
+        $this->assertSame('PASS', $result['status']);
+    }
+
 }
