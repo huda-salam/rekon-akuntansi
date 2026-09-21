@@ -126,6 +126,7 @@ class ReconciliationController extends Controller
             'signatory_official_nip' => ['nullable', 'string', 'max:30'],
             'signatory_official_position' => ['required', 'string', 'max:255'],
             'document_path' => ['nullable', 'string', 'max:500'],
+            'reconciliation_run_id' => ['nullable', 'integer', 'exists:reconciliation_runs,id'],
         ]);
 
         $ba = $service->execute($reconciliation, $validated);
