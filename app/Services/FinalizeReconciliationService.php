@@ -56,7 +56,33 @@ class FinalizeReconciliationService
                     ]);
                 }
 
-                $runResults = $run->results
+                $runResultsForSkpd = $run->results
+                    ->filter(fn ($result) => $result->skpd_id === null || (int) $result->skpd_id === (int) $reconciliation->skpd_id);
+
+                if ($runResultsForSkpd->isEmpty()) {
+                    throw ValidationException::withMessages([
+                        'reconciliation_run_id' => 'Run rekonsiliasi tidak memiliki hasil untuk SKPD pada BA ini.',
+                    ]);
+                }
+
+                $unresolved = $runResultsForSkpd->filter(function ($result) {
+                    if ($result->status === 'PASS') {
+                        return false;
+                    }
+
+                    return ! $result->reviews()
+                        ->whereIn('status', ['RESOLVED', 'ACCEPTED'])
+                        ->exists();
+                });
+
+                if ($unresolved->isNotEmpty()) {
+                    throw ValidationException::withMessages([
+                        'reconciliation_run_id' => 'Masih terdapat hasil VARIANCE/INCOMPLETE/ERROR yang belum memiliki review RESOLVED atau ACCEPTED.',
+                    ]);
+                }
+
+                $runResults = $runResultsForSkpd
+                    ->map(fn ($result) => [
                     ->filter(fn ($result) => $result->skpd_id === null || (int) $result->skpd_id === (int) $reconciliation->skpd_id)
                     ->map(fn ($result) => [
                     'id' => $result->id,
