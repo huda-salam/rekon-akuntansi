@@ -51,11 +51,23 @@ class FinancialFactCalculator
             return array_sum($values);
         }
 
-        if (preg_match('/^([a-zA-Z0-9_]+)\s*([+\-])\s*([a-zA-Z0-9_]+)$/', $expression, $matches)) {
-            $left = $values[$matches[1]] ?? throw new \InvalidArgumentException('Metric expression kiri tidak ditemukan.');
-            $right = $values[$matches[3]] ?? throw new \InvalidArgumentException('Metric expression kanan tidak ditemukan.');
+        if (preg_match('/^([a-zA-Z0-9_]+)(?:\s*([+\-])\s*([a-zA-Z0-9_]+))+$/', $expression)) {
+            preg_match_all('/([+\-]?)\s*([a-zA-Z0-9_]+)/', $expression, $tokens, PREG_SET_ORDER);
+            $result = null;
 
-            return $matches[2] === '+' ? $left + $right : $left - $right;
+            foreach ($tokens as $token) {
+                $operator = $token[1] ?? '';
+                $metric = $token[2];
+                if (! array_key_exists($metric, $values)) {
+                    throw new \InvalidArgumentException("Metric expression [{$metric}] tidak ditemukan.");
+                }
+
+                $result = $result === null
+                    ? $values[$metric]
+                    : ($operator === '+' ? $result + $values[$metric] : $result - $values[$metric]);
+            }
+
+            return (float) $result;
         }
 
         throw new \InvalidArgumentException("Expression calculation tidak didukung: {$expression}");
