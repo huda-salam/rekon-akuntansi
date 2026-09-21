@@ -64,6 +64,13 @@ class CrossSourceReconciliationService
             $query = $query->filter(fn ($fact) => $ids->contains((int) $fact->source_document_id));
         }
 
+        if (isset($side['canonical_metrics'])) {
+            $canonical = app(CanonicalMetricService::class)->normalize($query);
+            $metrics = collect($side['canonical_metrics']);
+            $value = $canonical->filter(fn ($item) => $metrics->contains($item['canonical_metric']))->sum(fn ($item) => (float) $item['value']);
+            return $canonical->filter(fn ($item) => $metrics->contains($item['canonical_metric']))->isEmpty() ? null : round((float) $value, 2);
+        }
+
         if (isset($side['metrics'])) {
             $metrics = collect($side['metrics']);
             $query = $query->filter(fn ($fact) => $metrics->contains($fact->metric));
