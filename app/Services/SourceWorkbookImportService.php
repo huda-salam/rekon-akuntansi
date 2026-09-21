@@ -20,6 +20,7 @@ class SourceWorkbookImportService
         private readonly GenericWorkbookParser $genericParser,
         private readonly NormalizedWorkbookParser $normalizedParser,
         private readonly RevenueReconciliationParser $revenueParser,
+        private readonly FinancialStatementParser $financialStatementParser,
     ) {}
 
     public function execute(
@@ -151,6 +152,10 @@ class SourceWorkbookImportService
             throw ValidationException::withMessages([
                 'file' => 'Workbook rekonsiliasi pengeluaran terdeteksi, tetapi tabel sumber tidak ditemukan.',
             ]);
+        }
+
+        if ($type === 'financial_statement') {
+            return $this->financialStatementParser->parse($sheets, $document, $year, $month);
         }
 
         if ($this->normalizedParser->supports($type)) {
