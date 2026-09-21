@@ -133,6 +133,20 @@ class ReconciliationRuleSeeder extends Seeder
                 'left' => ['source_type' => 'ledger', 'canonical_metrics' => ['lra_expenditure']],
                 'right' => ['source_type' => 'financial_statement', 'canonical_metrics' => ['lra_expenditure']],
             ],
+            [
+                'code' => 'ACC-003',
+                'name' => 'Surplus/(Defisit) LO vs LPE',
+                'category' => 'accounting',
+                'left' => ['source_type' => 'financial_statement', 'canonical_metrics' => ['lo_surplus_deficit']],
+                'right' => ['source_type' => 'financial_statement', 'canonical_metrics' => ['lpe_surplus_deficit']],
+            ],
+            [
+                'code' => 'ACC-004',
+                'name' => 'Ekuitas Neraca vs Ekuitas Akhir LPE',
+                'category' => 'accounting',
+                'left' => ['source_type' => 'financial_statement', 'canonical_metrics' => ['balance_equity']],
+                'right' => ['source_type' => 'financial_statement', 'canonical_metrics' => ['lpe_ending_equity']],
+            ],
         ];
 
         foreach ($crossSourceRules as $rule) {
