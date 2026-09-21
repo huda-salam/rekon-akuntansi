@@ -7,6 +7,7 @@ use App\Models\ReconciliationRun;
 use App\Services\FinalizeReconciliationService;
 use App\Services\ReconciliationRunService;
 use App\Services\ReconciliationSnapshotViewService;
+use App\Services\ReconciliationBaDocumentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -125,6 +126,20 @@ class ReconciliationController extends Controller
         return response()->json($service->build(
             $snapshot->load(['reconciliationRun'])
         ));
+    }
+
+    public function baDocument(
+        Request $request,
+        Reconciliation $reconciliation,
+        ReconciliationBaDocumentService $service,
+    ): JsonResponse {
+        $this->authorize('view', $reconciliation);
+
+        $snapshot = $reconciliation->snapshot()->firstOrFail();
+
+        return response()->json(
+            $service->build($snapshot)
+        );
     }
 
     public function finalize(
