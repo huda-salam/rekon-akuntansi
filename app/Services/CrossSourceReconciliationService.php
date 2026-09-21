@@ -47,11 +47,11 @@ class CrossSourceReconciliationService
     ): ?float {
         $query = $facts;
 
-        if ($skpdId !== null) {
+        if ($skpdId !== null && ($side['skpd_mode'] ?? 'exact') !== 'any') {
             $query = $query->filter(fn ($fact) => (int) $fact->skpd_id === $skpdId);
         }
 
-        if ($month !== null) {
+        if ($month !== null && ($side['period_mode'] ?? 'exact') !== 'any') {
             $query = $query->filter(fn ($fact) => (int) $fact->month === $month);
         }
 
