@@ -83,8 +83,6 @@ class FinalizeReconciliationService
 
                 $runResults = $runResultsForSkpd
                     ->map(fn ($result) => [
-                    ->filter(fn ($result) => $result->skpd_id === null || (int) $result->skpd_id === (int) $reconciliation->skpd_id)
-                    ->map(fn ($result) => [
                     'id' => $result->id,
                     'rule_id' => $result->reconciliation_rule_id,
                     'rule_code' => $result->rule?->code,
