@@ -6,6 +6,7 @@ use App\Models\Reconciliation;
 use App\Models\ReconciliationRun;
 use App\Services\FinalizeReconciliationService;
 use App\Services\ReconciliationRunService;
+use App\Services\ReconciliationSnapshotViewService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -64,7 +65,7 @@ class ReconciliationController extends Controller
         $data = $request->validate([
             'year' => ['required', 'integer', 'between:2000,2100'],
             'month' => ['nullable', 'integer', 'between:1,12'],
-            'category' => ['nullable', Rule::in(['expenditure', 'revenue'])],
+            'category' => ['nullable', Rule::in(['expenditure', 'revenue', 'accounting'])],
             'source_document_ids' => ['sometimes', 'array'],
             'source_document_ids.*' => ['integer', 'distinct'],
         ]);
@@ -110,6 +111,20 @@ class ReconciliationController extends Controller
                 ])->orderBy('id'),
             ])
         );
+    }
+
+    public function ba(
+        Request $request,
+        Reconciliation $reconciliation,
+        ReconciliationSnapshotViewService $service,
+    ): JsonResponse {
+        $this->authorize('view', $reconciliation);
+
+        $snapshot = $reconciliation->snapshot()->firstOrFail();
+
+        return response()->json($service->build(
+            $snapshot->load(['reconciliationRun'])
+        ));
     }
 
     public function finalize(
