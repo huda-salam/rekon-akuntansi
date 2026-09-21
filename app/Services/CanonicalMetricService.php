@@ -116,10 +116,13 @@ class CanonicalMetricService
         }
 
         if ($statement === 'NERACA') {
-            if ($this->containsAny($description, ['kas di rkud', 'kas di bendahara', 'kas dan setara kas', 'kas', 'setara kas'])) return 'balance_cash';
-            if ($this->containsAny($description, ['piutang'])) return 'balance_receivable';
-            if ($this->containsAny($description, ['persediaan'])) return 'balance_inventory';
-            if ($this->containsAny($description, ['aset tetap'])) return 'balance_fixed_assets';
+            // Only classify high-confidence aggregate balance-sheet lines.
+            // Detail rows must remain raw facts; otherwise cross-source
+            // aggregation can double-count the balance.
+            if ($summary && $this->containsAny($description, ['kas dan setara kas'])) return 'balance_cash';
+            if ($summary && $this->containsAny($description, ['piutang'])) return 'balance_receivable';
+            if ($summary && $this->containsAny($description, ['persediaan'])) return 'balance_inventory';
+            if ($summary && $this->containsAny($description, ['aset tetap'])) return 'balance_fixed_assets';
             if ($summary && (string) $fact->account_code === '3') return 'balance_equity';
         }
 
