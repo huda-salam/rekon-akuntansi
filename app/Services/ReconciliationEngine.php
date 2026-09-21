@@ -18,16 +18,18 @@ class ReconciliationEngine
     ): Collection {
         $results = collect();
         $calculator = app(FinancialFactCalculator::class);
+        $aggregator = app(FinancialFactAggregationService::class);
 
-        foreach ($facts->groupBy('source_record_id') as $recordFacts) {
-            foreach ($rules as $rule) {
+        foreach ($rules as $rule) {
+            foreach ($aggregator->grains($facts, $rule) as $grain) {
+                $recordFacts = collect($grain['facts']);
                 $base = [
                     'reconciliation_run_id' => $run->id,
                     'reconciliation_rule_id' => $rule->id,
-                    'source_document_id' => $recordFacts->first()->source_document_id,
-                    'skpd_id' => $recordFacts->first()->skpd_id,
-                    'month' => $run->month ?? $recordFacts->first()->month,
-                    'period' => $this->period($run->year?->year, $run->month ?? $recordFacts->first()->month),
+                    'source_document_id' => $grain['source_document_id'],
+                    'skpd_id' => $grain['skpd_id'],
+                    'month' => $run->month ?? $grain['month'],
+                    'period' => $this->period($run->year?->year, $run->month ?? $grain['month']),
                 ];
 
                 if (! $this->ruleApplies($rule, $recordFacts)) {
@@ -38,7 +40,7 @@ class ReconciliationEngine
                         'variance' => null,
                         'inputs' => [],
                         'lineage' => [
-                            'financial_fact_ids' => [],
+                            'financial_fact_ids' => $grain['financial_fact_ids'],
                             'missing_metrics' => collect($rule->input_metrics ?? [])
                                 ->reject(fn ($metric) => $recordFacts->contains('metric', $metric))
                                 ->values()
