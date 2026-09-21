@@ -37,7 +37,7 @@ class FinancialFactCalculator
         $value = $this->evaluate($values, $expression);
 
         return [
-            'value' => $value,
+            'value' => round($value, 2),
             'inputs' => $inputs,
             'lineage' => $lineage,
         ];
