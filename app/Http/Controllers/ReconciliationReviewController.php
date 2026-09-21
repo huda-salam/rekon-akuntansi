@@ -77,6 +77,27 @@ class ReconciliationReviewController extends Controller
             'evidence' => ['nullable', 'array'],
         ]);
 
+        $latest = $reconciliationResult->reviews()->latest('id')->first();
+        $allowed = [
+            null => ['OPEN', 'INVESTIGATING'],
+            'OPEN' => ['OPEN', 'INVESTIGATING'],
+            'INVESTIGATING' => ['INVESTIGATING', 'RESOLVED'],
+            'RESOLVED' => ['RESOLVED', 'ACCEPTED'],
+            'ACCEPTED' => ['ACCEPTED'],
+        ];
+
+        $currentStatus = $latest?->status;
+        abort_unless(
+            in_array($data['status'], $allowed[$currentStatus] ?? [], true),
+            422,
+            'Transisi status review tidak valid.'
+        );
+
+        if (in_array($data['status'], ['RESOLVED', 'ACCEPTED'], true)) {
+            abort_if(blank($data['note'] ?? null), 422, 'Catatan wajib diisi untuk status RESOLVED atau ACCEPTED.');
+            abort_if(empty($data['evidence'] ?? null), 422, 'Evidence wajib diisi untuk status RESOLVED atau ACCEPTED.');
+        }
+
         $review = ReconciliationReview::create([
             'reconciliation_result_id' => $reconciliationResult->id,
             'reviewed_by' => $user->id,
