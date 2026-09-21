@@ -10,6 +10,7 @@ class SourceDocument extends Model
 {
     protected $fillable = [
         'accounting_year_id',
+        'import_batch_id',
         'uploaded_by',
         'original_filename',
         'document_type',
@@ -32,6 +33,11 @@ class SourceDocument extends Model
     public function records(): HasMany
     {
         return $this->hasMany(SourceRecord::class);
+    }
+
+    public function importBatch(): BelongsTo
+    {
+        return $this->belongsTo(ImportBatch::class, 'import_batch_id');
     }
 
     public function year(): BelongsTo
