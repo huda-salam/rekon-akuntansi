@@ -6,6 +6,7 @@ use App\Models\AccountingYear;
 use App\Models\Skpd;
 use App\Models\SourceDocument;
 use App\Services\ExpenditureReconciliationParser;
+use App\Services\FinancialStatementParser;
 use App\Services\NormalizedWorkbookParser;
 use App\Services\RevenueReconciliationParser;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -218,6 +219,45 @@ class SourceIngestionTest extends TestCase
             'month' => 2,
             'metric' => 'bos',
             'value' => 4000,
+        ]);
+    }
+
+
+    public function test_financial_statement_parser_normalizes_account_and_report_columns(): void
+    {
+        $year = AccountingYear::create(['year' => 2026, 'is_active' => true]);
+
+        $document = SourceDocument::create([
+            'accounting_year_id' => $year->id,
+            'original_filename' => 'lra-kecamatan-pare-kab-kediri.xlsx',
+            'document_type' => 'financial_statement',
+            'source_category' => 'ACCOUNTING',
+            'checksum_sha256' => hash('sha256', 'statement-fixture'),
+            'status' => 'IMPORTED',
+        ]);
+
+        $sheets = new Collection([
+            'LRA' => new Collection([
+                ['LAPORAN REALISASI ANGGARAN'],
+                ['KODE REKENING', 'URAIAN', 'ANGGARAN', 'REALISASI 2026', '%'],
+                ['4.1.01.01', 'Pajak Daerah', 1000000, 950000, 95],
+            ]),
+        ]);
+
+        $count = app(FinancialStatementParser::class)->parse($sheets, $document, 2026);
+
+        $this->assertSame(1, $count);
+        $this->assertDatabaseHas('financial_facts', [
+            'source_document_id' => $document->id,
+            'account_code' => '4.1.01.01',
+            'metric' => 'anggaran',
+            'value' => 1000000,
+        ]);
+        $this->assertDatabaseHas('financial_facts', [
+            'source_document_id' => $document->id,
+            'account_code' => '4.1.01.01',
+            'metric' => 'realisasi_2026',
+            'value' => 950000,
         ]);
     }
 
