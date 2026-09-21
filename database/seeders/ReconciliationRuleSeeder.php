@@ -122,14 +122,14 @@ class ReconciliationRuleSeeder extends Seeder
             [
                 'code' => 'ACC-001',
                 'name' => 'LRA pendapatan vs Buku Besar pendapatan',
-                'category' => 'revenue',
+                'category' => 'accounting',
                 'left' => ['source_type' => 'ledger', 'canonical_metrics' => ['lra_revenue']],
                 'right' => ['source_type' => 'financial_statement', 'canonical_metrics' => ['lra_revenue']],
             ],
             [
                 'code' => 'ACC-002',
                 'name' => 'LRA belanja vs Buku Besar belanja',
-                'category' => 'expenditure',
+                'category' => 'accounting',
                 'left' => ['source_type' => 'ledger', 'canonical_metrics' => ['lra_expenditure']],
                 'right' => ['source_type' => 'financial_statement', 'canonical_metrics' => ['lra_expenditure']],
             ],
