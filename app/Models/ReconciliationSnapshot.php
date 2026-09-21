@@ -42,6 +42,11 @@ class ReconciliationSnapshot extends Model
         return $this->belongsTo(Reconciliation::class);
     }
 
+    public function results(): HasMany
+    {
+        return $this->hasMany(ReconciliationSnapshotResult::class, 'snapshot_id');
+    }
+
     public function details(): HasMany
     {
         return $this->hasMany(ReconciliationSnapshotDetail::class, 'snapshot_id');
