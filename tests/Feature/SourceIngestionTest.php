@@ -7,6 +7,7 @@ use App\Models\Skpd;
 use App\Models\SourceDocument;
 use App\Services\ExpenditureReconciliationParser;
 use App\Services\NormalizedWorkbookParser;
+use App\Services\RevenueReconciliationParser;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
 use Tests\TestCase;
@@ -163,6 +164,60 @@ class SourceIngestionTest extends TestCase
             'value' => 25000,
             'month' => 9,
             'account_code' => '5.1.01',
+        ]);
+    }
+
+
+    public function test_revenue_reconciliation_is_normalized_per_skpd_and_month(): void
+    {
+        $year = AccountingYear::create(['year' => 2026, 'is_active' => true]);
+        $skpd = Skpd::create(['code' => '7.01', 'name' => 'Kecamatan Pare', 'is_active' => true]);
+
+        $document = SourceDocument::create([
+            'accounting_year_id' => $year->id,
+            'original_filename' => 'rekonsiliasi pendapatan.xlsx',
+            'document_type' => 'revenue_reconciliation',
+            'source_category' => 'RKUD',
+            'checksum_sha256' => hash('sha256', 'revenue-fixture'),
+            'status' => 'IMPORTED',
+        ]);
+
+        $sheets = new Collection([
+            'PARE' => new Collection([
+                ['BERITA ACARA REKONSILIASI'],
+                ['PENDAPATAN SKPD TAHUN ANGGARAN 2026'],
+                ['PEMERINTAH KABUPATEN KEDIRI'],
+                [null],
+                ['SKPD', ':', 'Kecamatan Pare'],
+                [null, null, 'JANUARI', 'FEBRUARI'],
+                ['BKU PENERIMAAN MANUAL (SKPD)', ':', 100000, 120000],
+                ['BKU PENGELUARAN MANUAL (BPKAD)', ':', 100000, 120000],
+                ['Selisih Akumulasi', null, 0, 0],
+                ['Pendapatan NON RKUD', ':', 10000, 20000],
+                ['BLUD', ':', 1000, 2000],
+                ['JKN', ':', 2000, 3000],
+                ['BOS', ':', 3000, 4000],
+                ['BOK', ':', 4000, 5000],
+            ]),
+        ]);
+
+        $count = app(RevenueReconciliationParser::class)->parse($sheets, $document, 2026, 2);
+
+        $this->assertSame(1, $count);
+        $this->assertDatabaseHas('financial_facts', [
+            'source_document_id' => $document->id,
+            'skpd_id' => $skpd->id,
+            'month' => 2,
+            'metric' => 'pendapatan_non_rkud',
+            'value' => 20000,
+            'period' => '2026-02',
+        ]);
+        $this->assertDatabaseHas('financial_facts', [
+            'source_document_id' => $document->id,
+            'skpd_id' => $skpd->id,
+            'month' => 2,
+            'metric' => 'bos',
+            'value' => 4000,
         ]);
     }
 
