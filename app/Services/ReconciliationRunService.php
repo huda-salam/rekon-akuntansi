@@ -69,8 +69,14 @@ class ReconciliationRunService
         try {
             $facts = FinancialFact::query()
                 ->where('accounting_year_id', $yearId)
-                ->when($month !== null, fn ($query) => $query->where('month', $month))
-            ->whereIn('source_document_id', $documentIds)
+                ->when($month !== null, function ($query) use ($month) {
+                    // Keep annual snapshot facts (month IS NULL) available for
+                    // accounting rules while still restricting monthly facts.
+                    $query->where(function ($period) use ($month) {
+                        $period->where('month', $month)->orWhereNull('month');
+                    });
+                })
+                ->whereIn('source_document_id', $documentIds)
                 ->whereIn('source_type', $documentTypes)
                 ->get();
 
