@@ -283,3 +283,8 @@ Financial-statement workbooks are classified at import time:
 Accounting cross-source controls currently use only `official_report`. Working papers remain imported and available for later controls, but are not silently treated as another copy of the official report.
 
 This distinction is important because the working papers contain entity-level/consolidation columns and can represent intermediate calculation layers. Including them in the same aggregate as the official report could duplicate amounts or compare different reporting grains.
+
+
+### Fact-level lineage
+
+The import pipeline now copies `report_scope` into each financial fact's dimensions. Cross-source controls prefer this fact-level lineage and fall back to the source document metadata when older facts do not contain it. This keeps source selection traceable without changing the raw financial value.
