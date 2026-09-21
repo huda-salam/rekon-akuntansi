@@ -50,7 +50,7 @@ class LedgerParser implements SourceWorkbookParser
                         'source_document_id' => $document->id,
                         'source_record_id' => $record->id,
                         'accounting_year_id' => $yearId,
-                        'skpd_id' => null,
+                        'skpd_id' => $this->resolveSkpd($document)?->id,
                         'fact_date' => $this->date($date),
                         'period' => $factMonth ? sprintf('%04d-%02d', $year, $factMonth) : (string) $year,
                         'month' => $factMonth,
@@ -71,6 +71,20 @@ class LedgerParser implements SourceWorkbookParser
         }
 
         return $records;
+    }
+
+    private function resolveSkpd(SourceDocument $document): ?Skpd
+    {
+        $filename = mb_strtolower($document->original_filename);
+
+        foreach (Skpd::query()->get() as $skpd) {
+            $name = mb_strtolower(trim($skpd->name));
+            if ($name !== '' && str_contains($filename, $name)) {
+                return $skpd;
+            }
+        }
+
+        return null;
     }
 
     private function findHeader(Collection $rows): ?int
