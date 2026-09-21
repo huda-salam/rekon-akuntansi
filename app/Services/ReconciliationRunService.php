@@ -18,14 +18,21 @@ class ReconciliationRunService
         array $sourceDocumentIds = [],
         array $parameters = [],
         ?int $month = null,
+        string $category = 'expenditure',
     ): ReconciliationRun {
+        $documentTypes = match ($category) {
+            'revenue' => ['revenue_reconciliation'],
+            'expenditure' => ['expenditure_reconciliation'],
+            default => throw new RuntimeException("Reconciliation category [{$category}] is not supported."),
+        };
+
         $documents = SourceDocument::query()
             ->where('accounting_year_id', $yearId)
             ->when(
                 $sourceDocumentIds !== [],
                 fn ($query) => $query->whereIn('id', $sourceDocumentIds),
             )
-            ->where('document_type', 'expenditure_reconciliation')
+            ->whereIn('document_type', $documentTypes)
             ->get();
 
         if ($documents->isEmpty()) {
@@ -36,7 +43,7 @@ class ReconciliationRunService
 
         $rules = ReconciliationRule::query()
             ->where('status', 'active')
-            ->where('category', 'expenditure')
+            ->where('category', $category)
             ->where(function ($query) use ($yearId) {
                 $query->whereNull('accounting_year_id')
                     ->orWhere('accounting_year_id', $yearId);
@@ -55,7 +62,7 @@ class ReconciliationRunService
             'status' => 'running',
             'started_at' => now(),
             'source_document_ids' => $documentIds,
-            'parameters' => $parameters + ['month' => $month],
+            'parameters' => $parameters + ['month' => $month, 'category' => $category],
         ]);
 
         try {
@@ -63,7 +70,7 @@ class ReconciliationRunService
                 ->where('accounting_year_id', $yearId)
                 ->when($month !== null, fn ($query) => $query->where('month', $month))
                 ->whereIn('source_document_id', $documentIds)
-                ->whereIn('source_type', ['expenditure_reconciliation', 'rekonsiliasi_pengeluaran'])
+                ->whereIn('source_type', $documentTypes)
                 ->get();
 
             if ($facts->isEmpty()) {
