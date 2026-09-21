@@ -117,6 +117,46 @@ class ReconciliationRuleSeeder extends Seeder
             );
         }
 
+
+        $crossSourceRules = [
+            [
+                'code' => 'ACC-001',
+                'name' => 'LRA pendapatan vs Buku Besar pendapatan',
+                'category' => 'revenue',
+                'left' => ['source_type' => 'ledger', 'canonical_metrics' => ['lra_revenue']],
+                'right' => ['source_type' => 'financial_statement', 'canonical_metrics' => ['lra_revenue']],
+            ],
+            [
+                'code' => 'ACC-002',
+                'name' => 'LRA belanja vs Buku Besar belanja',
+                'category' => 'expenditure',
+                'left' => ['source_type' => 'ledger', 'canonical_metrics' => ['lra_expenditure']],
+                'right' => ['source_type' => 'financial_statement', 'canonical_metrics' => ['lra_expenditure']],
+            ],
+        ];
+
+        foreach ($crossSourceRules as $rule) {
+            ReconciliationRule::updateOrCreate(
+                ['accounting_year_id' => null, 'code' => $rule['code'], 'version' => '1'],
+                [
+                    'calculation_definition_id' => null,
+                    'name' => $rule['name'],
+                    'category' => $rule['category'],
+                    'scope' => 'skpd_month',
+                    'status' => 'active',
+                    'expression' => 'left - right',
+                    'tolerance' => 0,
+                    'input_metrics' => [],
+                    'metadata' => [
+                        'source' => 'canonical accounting mapping',
+                        'left' => $rule['left'],
+                        'right' => $rule['right'],
+                        'expected' => 0,
+                    ],
+                ]
+            );
+        }
+
         foreach ($rules as $rule) {
             $calculation = CalculationDefinition::query()
                 ->where('code', $rule['calculation'])
