@@ -10,6 +10,7 @@ class ReconciliationSnapshot extends Model
 {
     protected $fillable = [
         'reconciliation_id',
+        'reconciliation_run_id',
         'accounting_year',
         'skpd_code',
         'skpd_name',
@@ -30,6 +31,11 @@ class ReconciliationSnapshot extends Model
         'finalized_at' => 'datetime',
         'snapshot_payload' => 'array',
     ];
+
+    public function reconciliationRun(): BelongsTo
+    {
+        return $this->belongsTo(ReconciliationRun::class, 'reconciliation_run_id');
+    }
 
     public function reconciliation(): BelongsTo
     {
