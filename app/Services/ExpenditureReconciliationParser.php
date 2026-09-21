@@ -51,7 +51,7 @@ class ExpenditureReconciliationParser
             && $labels->contains('selisih');
     }
 
-    public function parse(Collection $rows, SourceDocument $document, int $year): int
+    public function parse(Collection $rows, SourceDocument $document, int $year, ?int $month = null, ?string $sheetName = null): int
     {
         $yearId = AccountingYear::query()->where('year', $year)->value('id');
 
@@ -93,7 +93,7 @@ class ExpenditureReconciliationParser
             $record = SourceRecord::create([
                 'source_document_id' => $document->id,
                 'source_row' => $headerIndex + $offset + 2,
-                'sheet_name' => $sheetName,
+                'sheet_name' => $sheetName ?? 'worksheet',
                 'record_type' => 'expenditure_reconciliation_row',
                 'payload' => $this->payload($row, $columns),
             ]);
@@ -118,7 +118,7 @@ class ExpenditureReconciliationParser
                     'source_record_id' => $record->id,
                     'accounting_year_id' => $yearId,
                     'skpd_id' => $skpd?->id,
-                    'period' => $month ? sprintf('%04d-%02d', $year, $month) : 'UNKNOWN',
+                    'period' => $month ? sprintf('%04d-%02d', $year, $month) : (string) $year,
                     'month' => $month,
                     'source_type' => 'expenditure_reconciliation',
                     'transaction_type' => $this->transactionType($label),
@@ -229,7 +229,7 @@ class ExpenditureReconciliationParser
             'source_record_id' => $record->id,
             'accounting_year_id' => $yearId,
             'skpd_id' => $skpd?->id,
-            'period' => $month ? sprintf('%04d-%02d', $year, $month) : 'UNKNOWN',
+            'period' => $month ? sprintf('%04d-%02d', $year, $month) : (string) $year,
             'month' => $month,
             'source_type' => 'expenditure_reconciliation',
             'transaction_type' => 'calculation',
