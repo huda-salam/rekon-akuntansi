@@ -304,3 +304,15 @@ This is deliberate: a positional spreadsheet reference is not sufficient evidenc
 ## 17. Balance-sheet canonical safeguards
 
 Neraca canonical metrics are restricted to high-confidence aggregate rows. Detail rows such as individual cash, receivable, inventory, or asset accounts remain raw facts and are not automatically promoted to canonical totals. This prevents cross-source aggregation from counting both a total and its components.
+
+
+## 18. BA snapshot of reconciliation results
+
+When a BA is finalized with a completed `reconciliation_run_id`, the immutable snapshot stores the applicable reconciliation results for the BA's SKPD. Each result preserves its rule, status, expected/actual/variance values, inputs, explanation, and lineage. The latest review state, including note and evidence, is also copied into the snapshot.
+
+The snapshot therefore records two distinct facts:
+
+1. the machine-generated reconciliation result at finalization time; and
+2. the review decision/evidence that allowed an exception to proceed to BA.
+
+A review does not mutate the original `reconciliation_results.status`. This preserves the distinction between calculation outcome and human review decision.
