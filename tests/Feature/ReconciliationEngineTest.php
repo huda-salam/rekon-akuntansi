@@ -233,4 +233,19 @@ class ReconciliationEngineTest extends TestCase
         $this->assertContains('total_sp2d_derived', $results->first()->lineage['missing_metrics']);
         $this->assertSame('completed', $run->fresh()->status);
     }
+
+    public function test_multi_term_expression_is_evaluated_without_arbitrary_code_execution(): void
+    {
+        $calculator = app(\App\Services\FinancialFactCalculator::class);
+
+        $facts = collect([
+            new FinancialFact(['metric'=>'a','value'=>100]),
+            new FinancialFact(['metric'=>'b','value'=>20]),
+            new FinancialFact(['metric'=>'c','value'=>30]),
+        ]);
+
+        $result = $calculator->calculate($facts, ['a','b','c'], 'a - b - c');
+
+        $this->assertSame(50.0, $result['value']);
+    }
 }
