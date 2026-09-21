@@ -31,7 +31,7 @@ class CanonicalMetricService
         return $facts->map(function (FinancialFact $fact) {
             $metric = $this->canonicalMetric($fact);
 
-            if ($metric === null) return null;
+            if ($metric === null || ! $this->isComparableColumn($fact, $metric)) return null;
 
             return [
                 'canonical_metric' => $metric,
@@ -60,6 +60,28 @@ class CanonicalMetricService
             'lra_expenditure', 'lra_capital_expenditure' => strtoupper((string) $fact->transaction_type) === 'CREDIT' ? -$value : $value,
             default => $value,
         };
+    }
+
+    private function isComparableColumn(FinancialFact $fact, string $metric): bool
+    {
+        if ($fact->source_type !== 'financial_statement') return true;
+
+        $column = mb_strtolower((string) ($fact->dimensions['column'] ?? ''));
+
+        // Never compare budget/target columns as if they were realized amounts.
+        if ($this->containsAny($column, ['anggaran', 'perubahan', 'target', 'persentase', '%'])) {
+            return false;
+        }
+
+        // The working papers contain multiple entity columns. Only the
+        // consolidated/realized column is safe for a cross-source control.
+        if ($this->containsAny($column, ['realisasi', 'konsolidasi', 'saldo'])) {
+            return true;
+        }
+
+        // A standalone statement export may expose only one numeric column.
+        // Keep it comparable when its column has no explicit budget semantics.
+        return ! $this->containsAny($column, ['pagu', 'rencana']);
     }
 
     private function canonicalMetric(FinancialFact $fact): ?string
