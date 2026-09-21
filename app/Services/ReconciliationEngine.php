@@ -182,8 +182,12 @@ class ReconciliationEngine
 
     private function period(?int $year, ?int $month): string
     {
-        return $year !== null && $month !== null
+        if ($year === null) {
+            return 'UNKNOWN';
+        }
+
+        return $month !== null
             ? sprintf('%04d-%02d', $year, $month)
-            : 'UNKNOWN';
+            : sprintf('%04d', $year);
     }
 }
