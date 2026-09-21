@@ -74,6 +74,7 @@ class FinancialStatementParser implements SourceWorkbookParser
                             'description' => $description,
                             'column' => $item['header'],
                             'statement' => $this->statementName($document->original_filename),
+                            'report_scope' => $document->metadata['report_scope'] ?? null,
                         ],
                         'lineage' => [
                             'origin' => 'reported',
