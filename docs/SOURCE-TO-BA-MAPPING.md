@@ -270,3 +270,16 @@ This is a correctness safeguard, not a business rule about how the final system 
 
 A cross-source rule produces one comparison per SKPD reconciliation grain, not one comparison for every source-document grain. This prevents the same SKPD/month control from being repeated merely because both sides contain multiple source documents.
 
+
+
+## 15. Report scope
+
+Financial-statement workbooks are classified at import time:
+
+- `official_report): supplied LRA, LO, Neraca, and LPE report exports.
+- `working_paper`: supplied `kertas-kerja-*.xlsx` workbooks.
+- `financial_statement_unknown`: financial-statement workbook whose filename cannot yet be classified safely.
+
+Accounting cross-source controls currently use only `official_report`. Working papers remain imported and available for later controls, but are not silently treated as another copy of the official report.
+
+This distinction is important because the working papers contain entity-level/consolidation columns and can represent intermediate calculation layers. Including them in the same aggregate as the official report could duplicate amounts or compare different reporting grains.
