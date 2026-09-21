@@ -8,6 +8,7 @@ use Illuminate\Support\Collection;
 
 class CanonicalMetricService
 {
+    /** Explicit semantic mapping; unmapped rows remain available as raw facts. */
     public const METRICS = [
         'lra_revenue' => 'LRA Pendapatan',
         'lra_expenditure' => 'LRA Belanja',
@@ -115,7 +116,7 @@ class CanonicalMetricService
         }
 
         if ($statement === 'NERACA') {
-            if ($this->containsAny($description, ['kas', 'setara kas'])) return 'balance_cash';
+            if ($this->containsAny($description, ['kas di rkud', 'kas di bendahara', 'kas dan setara kas', 'kas', 'setara kas'])) return 'balance_cash';
             if ($this->containsAny($description, ['piutang'])) return 'balance_receivable';
             if ($this->containsAny($description, ['persediaan'])) return 'balance_inventory';
             if ($this->containsAny($description, ['aset tetap'])) return 'balance_fixed_assets';
