@@ -23,6 +23,7 @@ class ReconciliationRunService
         $documentTypes = match ($category) {
             'revenue' => ['revenue_reconciliation', 'ledger', 'financial_statement', 'non_rkud_transfer'],
             'expenditure' => ['expenditure_reconciliation', 'ledger', 'financial_statement'],
+            'accounting' => ['ledger', 'financial_statement'],
             default => throw new RuntimeException("Reconciliation category [{$category}] is not supported."),
         };
 
