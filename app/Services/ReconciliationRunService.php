@@ -36,7 +36,7 @@ class ReconciliationRunService
             ->get();
 
         if ($documents->isEmpty()) {
-            throw new RuntimeException('No expenditure reconciliation source document is available for the selected accounting year.');
+            throw new RuntimeException('No reconciliation source document is available for the selected accounting year and category.');
         }
 
         $documentIds = $documents->pluck('id')->values()->all();
@@ -52,7 +52,7 @@ class ReconciliationRunService
             ->get();
 
         if ($rules->isEmpty()) {
-            throw new RuntimeException('No active expenditure reconciliation rules are configured.');
+            throw new RuntimeException('No active reconciliation rules are configured for the selected category.');
         }
 
         $run = ReconciliationRun::create([
@@ -69,8 +69,7 @@ class ReconciliationRunService
             $facts = FinancialFact::query()
                 ->where('accounting_year_id', $yearId)
                 ->when($month !== null, fn ($query) => $query->where('month', $month))
-            ->when($category !== null, fn ($query) => $query->whereJsonContains('parameters->category', $category))
-                ->whereIn('source_document_id', $documentIds)
+            ->whereIn('source_document_id', $documentIds)
                 ->whereIn('source_type', $documentTypes)
                 ->get();
 
@@ -104,6 +103,10 @@ class ReconciliationRunService
                 'results as incomplete_results_count' => fn ($query) => $query->where('status', 'INCOMPLETE'),
             ])
             ->latest('id');
+
+        if ($category !== null) {
+            $query->whereJson('parameters->category', $category);
+        }
 
         if (! $user->isAdmin()) {
             $query->whereHas('results', fn ($q) => $q->where('skpd_id', $user->skpd_id));
