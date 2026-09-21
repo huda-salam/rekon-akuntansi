@@ -52,6 +52,14 @@ class CanonicalMetricService
         $statement = strtoupper((string) ($fact->dimensions['statement'] ?? $fact->transaction_type ?? ''));
         $description = mb_strtolower((string) ($fact->dimensions['description'] ?? ''));
 
+        if ($fact->source_type === 'ledger') {
+            $code = (string) $fact->account_code;
+            if (str_starts_with($code, '4')) return 'lra_revenue';
+            if (str_starts_with($code, '5.2')) return 'lra_capital_expenditure';
+            if (str_starts_with($code, '5')) return 'lra_expenditure';
+            return null;
+        }
+
         if ($fact->source_type !== 'financial_statement') return null;
 
         if ($statement === 'LRA') {
