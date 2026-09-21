@@ -48,7 +48,7 @@ class GenericWorkbookParser
                     'payload' => $payload,
                 ]);
 
-                $this->facts($row, $headers, $record, $document, $yearId, $month);
+                $this->facts($row, $headers, $record, $document, $year, $yearId, $month);
 
                 $records++;
             }
@@ -57,7 +57,7 @@ class GenericWorkbookParser
         return $records;
     }
 
-    private function facts(array|Collection $row, array $headers, SourceRecord $record, SourceDocument $document, int $yearId, ?int $month): void
+    private function facts(array|Collection $row, array $headers, SourceRecord $record, SourceDocument $document, int $year, int $yearId, ?int $month): void
     {
         foreach ($headers as $index => $header) {
             $value = $row[$index] ?? null;
