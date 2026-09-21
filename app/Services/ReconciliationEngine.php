@@ -19,8 +19,28 @@ class ReconciliationEngine
         $results = collect();
         $calculator = app(FinancialFactCalculator::class);
         $aggregator = app(FinancialFactAggregationService::class);
+        $crossSource = app(CrossSourceReconciliationService::class);
 
         foreach ($rules as $rule) {
+            $metadata = $rule->metadata ?? [];
+            if (isset($metadata['left'], $metadata['right'])) {
+                foreach ($aggregator->grains($facts, $rule) as $grain) {
+                    $comparison = $crossSource->compare($facts, $rule, $grain['skpd_id'], $run->month ?? $grain['month']);
+                    $base = [
+                        'reconciliation_run_id' => $run->id,
+                        'reconciliation_rule_id' => $rule->id,
+                        'source_document_id' => $grain['source_document_id'],
+                        'skpd_id' => $grain['skpd_id'],
+                        'month' => $run->month ?? $grain['month'],
+                        'period' => $this->period($run->year?->year, $run->month ?? $grain['month']),
+                    ];
+                    $result = $comparison === null
+                        ? ReconciliationResult::create($base + ['status'=>'INCOMPLETE','expected_value'=>0,'actual_value'=>null,'variance'=>null,'inputs'=>[],'lineage'=>['financial_fact_ids'=>$grain['financial_fact_ids']],'explanation'=>'Cross-source inputs are incomplete for this reconciliation grain.'])
+                        : ReconciliationResult::create($base + ['status'=>$comparison['status'],'expected_value'=>0,'actual_value'=>$comparison['variance'],'variance'=>$comparison['variance'],'inputs'=>[['side'=>'left','value'=>$comparison['left']],['side'=>'right','value'=>$comparison['right']]],'lineage'=>['financial_fact_ids'=>$grain['financial_fact_ids'],'cross_source'=>true]]);
+                    $results->push($result);
+                }
+                continue;
+            }
             foreach ($aggregator->grains($facts, $rule) as $grain) {
                 $recordFacts = collect($grain['facts']);
                 $base = [
