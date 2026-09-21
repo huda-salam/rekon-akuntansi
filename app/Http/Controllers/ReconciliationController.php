@@ -8,6 +8,7 @@ use App\Services\FinalizeReconciliationService;
 use App\Services\ReconciliationRunService;
 use App\Services\ReconciliationSnapshotViewService;
 use App\Services\ReconciliationBaDocumentService;
+use App\Services\ReconciliationBaExcelService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -140,6 +141,23 @@ class ReconciliationController extends Controller
         return response()->json(
             $service->build($snapshot)
         );
+    }
+
+    public function baExcel(
+        Request $request,
+        Reconciliation $reconciliation,
+        ReconciliationBaExcelService $service,
+    ) {
+        $this->authorize('view', $reconciliation);
+
+        $beritaAcara = $reconciliation->beritaAcara()->firstOrFail();
+        $path = $service->export($beritaAcara);
+
+        return response()->download(
+            storage_path('app/'.$path),
+            basename($path),
+            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']
+        )->deleteFileAfterSend(true);
     }
 
     public function finalize(
