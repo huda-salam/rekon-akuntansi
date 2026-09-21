@@ -90,6 +90,7 @@ class SourceWorkbookImportService
                         'sheets' => $sheets->keys()->values()->all(),
                         'detection' => $detection,
                         'requested_month' => $month,
+                        'report_scope' => $this->reportScope($file->getClientOriginalName(), $detection['type']),
                     ],
                     'imported_at' => now(),
                 ]);
@@ -130,6 +131,25 @@ class SourceWorkbookImportService
         }
 
         return compact('imported', 'failed');
+    }
+
+    private function reportScope(string $filename, string $type): string
+    {
+        $name = mb_strtolower(pathinfo($filename, PATHINFO_BASENAME));
+
+        if ($type !== 'financial_statement') {
+            return 'source';
+        }
+
+        if (str_starts_with($name, 'kertas-kerja-') || str_contains($name, 'kertas kerja')) {
+            return 'working_paper';
+        }
+
+        if (str_starts_with($name, 'lra-') || str_starts_with($name, 'neraca-') || str_starts_with($name, 'lpe_') || str_starts_with($name, 'laporan-operasional-')) {
+            return 'official_report';
+        }
+
+        return 'financial_statement_unknown';
     }
 
     private function parse(
