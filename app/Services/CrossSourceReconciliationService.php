@@ -59,18 +59,24 @@ class CrossSourceReconciliationService
         }
 
         if (isset($side['report_scope'])) {
-            $documentIds = $query->pluck('source_document_id')->filter()->unique()->values();
-            if ($documentIds->isEmpty()) {
-                return null;
-            }
-
-            $scopes = SourceDocument::query()
-                ->whereIn('id', $documentIds)
-                ->get(['id', 'metadata'])
-                ->mapWithKeys(fn ($document) => [(int) $document->id => $document->metadata['report_scope'] ?? null]);
-
             $allowed = collect($side['report_scope']);
-            $query = $query->filter(fn ($fact) => $allowed->contains($scopes->get((int) $fact->source_document_id)));
+            $query = $query->filter(function ($fact) use ($allowed) {
+                $factScope = $fact->dimensions['report_scope'] ?? null;
+
+                if ($factScope !== null) {
+                    return $allowed->contains($factScope);
+                }
+
+                if ($fact->source_document_id === null) {
+                    return false;
+                }
+
+                $document = SourceDocument::query()
+                    ->select(['id', 'metadata'])
+                    ->find((int) $fact->source_document_id);
+
+                return $allowed->contains($document?->metadata['report_scope'] ?? null);
+            });
         }
 
         if (isset($side['document_ids'])) {
