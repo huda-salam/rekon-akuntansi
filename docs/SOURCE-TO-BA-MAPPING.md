@@ -276,7 +276,7 @@ A cross-source rule produces one comparison per SKPD reconciliation grain, not o
 
 Financial-statement workbooks are classified at import time:
 
-- `official_report): supplied LRA, LO, Neraca, and LPE report exports.
+- `official_report`: supplied LRA, LO, Neraca, and LPE report exports.
 - `working_paper`: supplied `kertas-kerja-*.xlsx` workbooks.
 - `financial_statement_unknown`: financial-statement workbook whose filename cannot yet be classified safely.
 
@@ -288,3 +288,19 @@ This distinction is important because the working papers contain entity-level/co
 ### Fact-level lineage
 
 The import pipeline now copies `report_scope` into each financial fact's dimensions. Cross-source controls prefer this fact-level lineage and fall back to the source document metadata when older facts do not contain it. This keeps source selection traceable without changing the raw financial value.
+
+
+## 16. LRA ↔ LO supporting value is intentionally not invented
+
+The supplied BA contains two controls whose formulas reference an additional supporting value (described in the BA formula as a value from row 38):
+
+- revenue control: `Jumlah Pendapatan LRA - Jumlah Pendapatan-LO - supporting value = 0`;
+- expenditure control: `Jumlah Beban - Jumlah Belanja LRA + Jumlah Belanja Modal + supporting value = 0`.
+
+The supplied input set does not yet establish the semantic identity, source workbook, grain, or period of that supporting value. Therefore the implementation does **not** substitute a guessed account, row, or adjustment amount. These controls remain **PARTIAL/BLOCKED at the supporting-value mapping layer** until the source evidence is identified.
+
+This is deliberate: a positional spreadsheet reference is not sufficient evidence of accounting meaning. Once the supporting source is identified, it should be introduced as an explicitly named canonical adjustment/support metric with its own lineage and period semantics, then used by the two controls.
+
+## 17. Balance-sheet canonical safeguards
+
+Neraca canonical metrics are restricted to high-confidence aggregate rows. Detail rows such as individual cash, receivable, inventory, or asset accounts remain raw facts and are not automatically promoted to canonical totals. This prevents cross-source aggregation from counting both a total and its components.
