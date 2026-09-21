@@ -63,6 +63,7 @@ class ReconciliationController extends Controller
         $data = $request->validate([
             'year' => ['required', 'integer', 'between:2000,2100'],
             'month' => ['nullable', 'integer', 'between:1,12'],
+            'category' => ['nullable', Rule::in(['expenditure', 'revenue'])],
             'source_document_ids' => ['sometimes', 'array'],
             'source_document_ids.*' => ['integer', 'distinct'],
         ]);
@@ -76,8 +77,9 @@ class ReconciliationController extends Controller
                 $year->id,
                 $request->user()->id,
                 $data['source_document_ids'] ?? [],
-                ['requested_year' => $data['year'], 'requested_month' => $data['month'] ?? null],
+                ['requested_year' => $data['year'], 'requested_month' => $data['month'] ?? null, 'category' => $data['category'] ?? 'expenditure'],
                 $data['month'] ?? null,
+                $data['category'] ?? 'expenditure',
             );
         } catch (RuntimeException $exception) {
             return response()->json([
