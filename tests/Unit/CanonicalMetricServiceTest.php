@@ -105,6 +105,48 @@ class CanonicalMetricServiceTest extends TestCase
         $this->assertSame(500.0, $result->first()['value']);
     }
 
+    
+    public function test_neraca_detail_cash_row_is_not_mistaken_for_total_cash(): void
+    {
+        $fact = new FinancialFact([
+            'source_type' => 'financial_statement',
+            'transaction_type' => 'NERACA',
+            'account_code' => '1.1.01.01',
+            'metric' => '2026',
+            'value' => 250,
+            'dimensions' => [
+                'statement' => 'NERACA',
+                'description' => 'Kas di Bendahara Penerimaan',
+                'column' => '2026',
+                'summary_row' => false,
+            ],
+        ]);
+
+        $this->assertCount(0, app(CanonicalMetricService::class)->normalize(collect([$fact])));
+    }
+
+    public function test_neraca_summary_cash_row_is_canonical_cash(): void
+    {
+        $fact = new FinancialFact([
+            'source_type' => 'financial_statement',
+            'transaction_type' => 'NERACA',
+            'account_code' => '1.1',
+            'metric' => '2026',
+            'value' => 1000,
+            'dimensions' => [
+                'statement' => 'NERACA',
+                'description' => 'KAS DAN SETARA KAS',
+                'column' => '2026',
+                'summary_row' => true,
+            ],
+        ]);
+
+        $result = app(CanonicalMetricService::class)->normalize(collect([$fact]));
+
+        $this->assertSame('balance_cash', $result->first()['canonical_metric']);
+        $this->assertSame(1000.0, $result->first()['value']);
+    }
+
     public function test_unmapped_financial_statement_row_is_not_invented_as_a_canonical_metric(): void
     {
         $fact = new FinancialFact([
