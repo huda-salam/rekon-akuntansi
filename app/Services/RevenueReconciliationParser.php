@@ -60,6 +60,8 @@ class RevenueReconciliationParser implements SourceWorkbookParser
                     'payload'=>$payload,
                 ]);
 
+                $this->derivedNonRkudFact($facts, $document, $record, $yearId, $skpd, $sheetName, $year, $monthNumber);
+
                 foreach($facts as $fact){
                     FinancialFact::create([
                         'source_document_id'=>$document->id,'source_record_id'=>$record->id,
@@ -120,8 +122,8 @@ class RevenueReconciliationParser implements SourceWorkbookParser
             'BKU PENGELUARAN MANUAL (BPKAD)'=>'bku_pengeluaran_manual_bpkad',
             'Selisih Akumulasi'=>'selisih_akumulasi',
             'Pendapatan NON RKUD'=>'pendapatan_non_rkud',
-            'BLUD'=>'blud','    BLUD Puskesmas'=>'blud_puskesmas','    BLUD RSKK'=>'blud_rskk','    BLUD RSUD SLG'=>'blud_rsud_slg','JKN'=>'jkn','BOS'=>'bos','BOK'=>'bok',
-            'STS (yg punya no. STS)'=>'sts',
+            'BLUD'=>'blud','    BLUD Puskesmas'=>'blud_puskesmas','    BLUD RSKK'=>'blud_rskk','    BLUD RSUD SLG'=>'blud_rsud_slg','JKN'=>'jkn','BOS'=>'bos','BOS/BOP'=>'bos_bop','BOK'=>'bok','TPG Tamsil'=>'tpg_tamsil',
+            'Selisih'=>'selisih_pendapatan_non_rkud','STS (yg punya no. STS)'=>'sts',
             'STBP (total semua, termasuk yg di STS kan)'=>'stbp',
             'Sisa'=>'sisa',
             'Saldo Sebelumnya (SIPD) Penerimaan'=>'saldo_sebelumnya_sipd_penerimaan',
@@ -141,6 +143,33 @@ class RevenueReconciliationParser implements SourceWorkbookParser
         return $map[$label]??null;
     }
 
+    private function derivedNonRkudFact(array $facts, SourceDocument $document, SourceRecord $record, int $yearId, ?Skpd $skpd, string $sheetName, int $year, int $month): void
+    {
+        $metrics = collect($facts)->filter(fn ($fact) => in_array($fact['metric'], [
+            'blud', 'blud_puskesmas', 'blud_rskk', 'blud_rsud_slg', 'jkn', 'bos', 'bos_bop', 'bok', 'tpg_tamsil',
+        ], true));
+
+        if ($metrics->isEmpty()) return;
+
+        $value = (float) $metrics->sum('value');
+
+        FinancialFact::create([
+            'source_document_id' => $document->id,
+            'source_record_id' => $record->id,
+            'accounting_year_id' => $yearId,
+            'skpd_id' => $skpd?->id,
+            'period' => sprintf('%04d-%02d', $year, $month),
+            'month' => $month,
+            'source_type' => 'revenue_reconciliation',
+            'transaction_type' => 'calculation',
+            'account_code' => null,
+            'metric' => 'pendapatan_non_rkud_derived',
+            'value' => $value,
+            'unit' => 'IDR',
+            'dimensions' => ['sheet_name' => $sheetName, 'origin' => 'derived', 'component_metrics' => $metrics->pluck('metric')->values()->all()],
+            'lineage' => ['origin' => 'derived', 'input_metrics' => $metrics->map(fn ($fact) => ['metric' => $fact['metric'], 'source_row' => $fact['source_row'], 'value' => $fact['value']])->values()->all()],
+        ]);
+    }
     private function number(mixed $value): ?float
     {
         if(is_int($value)||is_float($value)) return (float)$value;
