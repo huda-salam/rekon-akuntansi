@@ -41,7 +41,7 @@ class ReconciliationController extends Controller
         $data = $request->validate([
             'year' => ['required', 'integer', 'between:2000,2100'],
             'month' => ['nullable', 'integer', 'between:1,12'],
-            'category' => ['nullable', Rule::in(['expenditure', 'revenue'])],
+            'category' => ['nullable', Rule::in(['expenditure', 'revenue', 'accounting'])],
         ]);
 
         $year = \App\Models\AccountingYear::query()
