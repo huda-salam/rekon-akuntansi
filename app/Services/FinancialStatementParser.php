@@ -52,7 +52,7 @@ class FinancialStatementParser implements SourceWorkbookParser
                     'payload' => $this->payload($row, $headers),
                 ]);
 
-                $skpd = $this->resolveSkpd($row, $headers);
+                $skpd = $this->resolveSkpd($row, $headers) ?? $this->resolveSkpdFromFilename($document);
 
                 foreach ($numeric as $item) {
                     FinancialFact::create([
@@ -94,6 +94,20 @@ class FinancialStatementParser implements SourceWorkbookParser
         }
 
         return $records;
+    }
+
+    private function resolveSkpdFromFilename(SourceDocument $document): ?Skpd
+    {
+        $filename = mb_strtolower($document->original_filename);
+
+        foreach (Skpd::query()->get() as $skpd) {
+            $name = mb_strtolower(trim($skpd->name));
+            if ($name !== '' && str_contains($filename, $name)) {
+                return $skpd;
+            }
+        }
+
+        return null;
     }
 
     private function findHeader(Collection $rows): ?int
