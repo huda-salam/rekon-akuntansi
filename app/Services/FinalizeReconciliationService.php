@@ -6,6 +6,7 @@ use App\Models\BeritaAcara;
 use App\Models\Reconciliation;
 use App\Models\ReconciliationSnapshot;
 use App\Models\ReconciliationRun;
+use App\Models\ReconciliationSnapshotResult;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -83,22 +84,23 @@ class FinalizeReconciliationService
 
                 $runResults = $runResultsForSkpd
                     ->map(fn ($result) => [
-                    'id' => $result->id,
-                    'rule_id' => $result->reconciliation_rule_id,
-                    'rule_code' => $result->rule?->code,
-                    'rule_name' => $result->rule?->name,
-                    'category' => $result->rule?->category,
-                    'skpd_id' => $result->skpd_id,
-                    'month' => $result->month,
-                    'period' => $result->period,
-                    'status' => $result->status,
-                    'expected_value' => $result->expected_value !== null ? (string) $result->expected_value : null,
-                    'actual_value' => $result->actual_value !== null ? (string) $result->actual_value : null,
-                    'variance' => $result->variance !== null ? (string) $result->variance : null,
-                    'inputs' => $result->inputs,
-                    'lineage' => $result->lineage,
-                    'explanation' => $result->explanation,
-                ])->values()->all();
+                        'id' => $result->id,
+                        'rule_id' => $result->reconciliation_rule_id,
+                        'rule_code' => $result->rule?->code,
+                        'rule_name' => $result->rule?->name,
+                        'category' => $result->rule?->category,
+                        'skpd_id' => $result->skpd_id,
+                        'month' => $result->month,
+                        'period' => $result->period,
+                        'status' => $result->status,
+                        'expected_value' => $result->expected_value !== null ? (string) $result->expected_value : null,
+                        'actual_value' => $result->actual_value !== null ? (string) $result->actual_value : null,
+                        'variance' => $result->variance !== null ? (string) $result->variance : null,
+                        'inputs' => $result->inputs,
+                        'lineage' => $result->lineage,
+                        'explanation' => $result->explanation,
+                        'review' => $result->reviews->sortByDesc('id')->first()?->only(['id', 'status', 'note', 'evidence', 'reviewed_by', 'reviewed_at']),
+                    ])->values()->all();
             }
 
             $snapshotData = [
@@ -154,6 +156,26 @@ class FinalizeReconciliationService
                 'snapshot_hash' => hash('sha256', $json),
                 'snapshot_payload' => $snapshotData,
             ]);
+
+            foreach ($runResults as $result) {
+                $snapshot->results()->create([
+                    'source_result_id' => $result['id'],
+                    'rule_code' => $result['rule_code'],
+                    'rule_name' => $result['rule_name'],
+                    'category' => $result['category'],
+                    'skpd_id' => $result['skpd_id'],
+                    'month' => $result['month'],
+                    'period' => $result['period'],
+                    'status' => $result['status'],
+                    'expected_value' => $result['expected_value'],
+                    'actual_value' => $result['actual_value'],
+                    'variance' => $result['variance'],
+                    'inputs' => $result['inputs'],
+                    'lineage' => $result['lineage'],
+                    'explanation' => $result['explanation'],
+                    'review' => $result['review'],
+                ]);
+            }
 
             foreach ($snapshotData['details'] as $detail) {
                 $snapshot->details()->create([
