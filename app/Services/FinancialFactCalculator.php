@@ -29,9 +29,9 @@ class FinancialFactCalculator
             $inputs[] = [
                 'metric' => $metric,
                 'value' => (float) $fact->value,
-                'financial_fact_id' => $fact->id,
+                'financial_fact_ids' => $fact->lineage_ids ?? [$fact->id],
             ];
-            $lineage[] = $fact->id;
+            $lineage = array_merge($lineage, $fact->lineage_ids ?? [$fact->id]);
         }
 
         $value = $this->evaluate($values, $expression);
