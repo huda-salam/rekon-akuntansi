@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\FinancialFact;
 use App\Models\ReconciliationRule;
+use App\Models\SourceDocument;
 use Illuminate\Support\Collection;
 
 class CrossSourceReconciliationService
@@ -55,6 +56,21 @@ class CrossSourceReconciliationService
 
         if (isset($side['source_type'])) {
             $query = $query->filter(fn ($fact) => $fact->source_type === $side['source_type']);
+        }
+
+        if (isset($side['report_scope'])) {
+            $documentIds = $query->pluck('source_document_id')->filter()->unique()->values();
+            if ($documentIds->isEmpty()) {
+                return null;
+            }
+
+            $scopes = SourceDocument::query()
+                ->whereIn('id', $documentIds)
+                ->get(['id', 'metadata'])
+                ->mapWithKeys(fn ($document) => [(int) $document->id => $document->metadata['report_scope'] ?? null]);
+
+            $allowed = collect($side['report_scope']);
+            $query = $query->filter(fn ($fact) => $allowed->contains($scopes->get((int) $fact->source_document_id)));
         }
 
         if (isset($side['document_ids'])) {
