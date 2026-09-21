@@ -51,9 +51,7 @@ class CrossSourceReconciliationService
             $query = $query->filter(fn ($fact) => (int) $fact->skpd_id === $skpdId);
         }
 
-        if ($month !== null && ($side['period_mode'] ?? 'exact') !== 'any') {
-            $query = $query->filter(fn ($fact) => (int) $fact->month === $month);
-        }
+        $query = $this->filterPeriod($query, $side['period_mode'] ?? 'monthly', $month);
 
         if (isset($side['source_type'])) {
             $query = $query->filter(fn ($fact) => $fact->source_type === $side['source_type']);
@@ -67,8 +65,11 @@ class CrossSourceReconciliationService
         if (isset($side['canonical_metrics'])) {
             $canonical = app(CanonicalMetricService::class)->normalize($query);
             $metrics = collect($side['canonical_metrics']);
-            $value = $canonical->filter(fn ($item) => $metrics->contains($item['canonical_metric']))->sum(fn ($item) => (float) $item['value']);
-            return $canonical->filter(fn ($item) => $metrics->contains($item['canonical_metric']))->isEmpty() ? null : round((float) $value, 2);
+            $selected = $canonical->filter(fn ($item) => $metrics->contains($item['canonical_metric']));
+
+            return $selected->isEmpty()
+                ? null
+                : round((float) $selected->sum(fn ($item) => (float) $item['value']), 2);
         }
 
         if (isset($side['metrics'])) {
@@ -86,5 +87,34 @@ class CrossSourceReconciliationService
         }
 
         return round((float) $query->sum(fn ($fact) => (float) $fact->value), 2);
+    }
+
+    /**
+     * Period semantics are explicit because a reconciliation period is not
+     * necessarily the same thing as the source file's stored month.
+     *
+     * MONTHLY: source facts belong to the requested month.
+     * YEAR_TO_DATE: monthly facts from January through the requested month.
+     * ANNUAL_SNAPSHOT: annual/closing facts with no monthly period.
+     * ANY: do not constrain the period.
+     * PRIOR_YEAR: reserved for prior-year comparison; requires a caller-provided
+     * prior-year fact set and therefore behaves as ANY at this layer.
+     * OPENING_BALANCE: facts without a monthly period (opening snapshot).
+     */
+    private function filterPeriod(Collection $facts, string $mode, ?int $month): Collection
+    {
+        return match (strtoupper($mode)) {
+            'ANY' => $facts,
+            'ANNUAL_SNAPSHOT' => $facts->filter(fn ($fact) => $fact->month === null),
+            'OPENING_BALANCE' => $facts->filter(fn ($fact) => $fact->month === null),
+            'MONTHLY' => $month === null
+                ? $facts
+                : $facts->filter(fn ($fact) => (int) $fact->month === $month),
+            'YEAR_TO_DATE' => $month === null
+                ? $facts
+                : $facts->filter(fn ($fact) => $fact->month !== null && (int) $fact->month <= $month),
+            'PRIOR_YEAR' => $facts,
+            default => throw new \InvalidArgumentException("Unsupported cross-source period mode [{$mode}]."),
+        };
     }
 }
