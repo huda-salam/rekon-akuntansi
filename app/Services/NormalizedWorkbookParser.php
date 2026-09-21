@@ -1,0 +1,195 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\AccountingYear;
+use App\Models\FinancialFact;
+use App\Models\Skpd;
+use App\Models\SourceDocument;
+use App\Models\SourceRecord;
+use Illuminate\Support\Collection;
+
+class NormalizedWorkbookParser implements SourceWorkbookParser
+{
+    public function supports(string $type): bool
+    {
+        return in_array($type, ['revenue_reconciliation', 'financial_statement', 'ledger', 'non_rkud_transfer'], true);
+    }
+
+    public function parse(Collection $sheets, SourceDocument $document, int $year, ?int $month = null): int
+    {
+        $yearId = AccountingYear::query()->where('year', $year)->value('id');
+        if (! $yearId) {
+            throw new \InvalidArgumentException("Tahun {$year} tidak ditemukan.");
+        }
+
+        $records = 0;
+        foreach ($sheets as $sheetName => $rows) {
+            $headerIndex = $this->headerIndex($rows, $document->document_type);
+            $headers = $headerIndex !== null ? $this->headers($rows->get($headerIndex)) : [];
+
+            foreach ($rows as $rowIndex => $row) {
+                if ($headerIndex !== null && $rowIndex <= $headerIndex) continue;
+                if ($this->isEmptyRow($row)) continue;
+
+                $record = SourceRecord::create([
+                    'source_document_id' => $document->id,
+                    'source_row' => $rowIndex + 1,
+                    'sheet_name' => (string) $sheetName,
+                    'record_type' => $document->document_type . '_row',
+                    'payload' => $this->payload($row, $headers),
+                ]);
+
+                $this->facts($row, $headers, $record, $document, $yearId, $year, $month);
+                $records++;
+            }
+        }
+
+        return $records;
+    }
+
+    private function headerIndex(Collection $rows, string $type): ?int
+    {
+        $best = null;
+        $bestScore = -1;
+
+        foreach ($rows->take(40) as $index => $row) {
+            $labels = collect($row)->map(fn ($v) => mb_strtolower(trim((string) ($v ?? ''))))->filter();
+            if ($labels->isEmpty()) continue;
+
+            $targets = match ($type) {
+                'revenue_reconciliation' => ['kode', 'kode rekening', 'rekening', 'uraian', 'realisasi', 'pendapatan', 'skpd', 'nama skpd'],
+                'ledger' => ['tanggal', 'kode rekening', 'nama rekening', 'uraian', 'debit', 'kredit', 'saldo', 'referensi'],
+                'financial_statement' => ['kode rekening', 'uraian', 'anggaran', 'realisasi', 'saldo', 'jumlah', 'tahun', 'konsolidasi'],
+                default => ['kode rekening', 'uraian', 'tanggal', 'jumlah', 'nominal', 'nilai', 'pagu', 'realisasi'],
+            };
+
+            $score = $labels->intersect($targets)->count();
+            if ($score > $bestScore && $labels->count() >= 2) {
+                $bestScore = $score;
+                $best = $index;
+            }
+        }
+
+        return $bestScore > 0 ? $best : null;
+    }
+
+    private function headers(array|Collection $row): array
+    {
+        $headers = [];
+        foreach ($row as $index => $value) {
+            $label = trim((string) ($value ?? ''));
+            $headers[$index] = $label !== '' ? $label : "column_{$index}";
+        }
+        return $headers;
+    }
+
+    private function payload(array|Collection $row, array $headers): array
+    {
+        $payload = [];
+        foreach ($headers as $index => $header) $payload[$header] = $row[$index] ?? null;
+        return $payload;
+    }
+
+    private function facts(array|Collection $row, array $headers, SourceRecord $record, SourceDocument $document, int $yearId, int $year, ?int $month): void
+    {
+        $skpd = $this->resolveSkpd($row, $headers);
+        $accountCode = $this->accountCode($row, $headers);
+
+        foreach ($headers as $index => $header) {
+            $value = $this->number($row[$index] ?? null);
+            if ($value === null) continue;
+
+            $metric = $this->metric($header);
+            if ($metric === '') continue;
+
+            FinancialFact::create([
+                'source_document_id' => $document->id,
+                'source_record_id' => $record->id,
+                'accounting_year_id' => $yearId,
+                'skpd_id' => $skpd?->id,
+                'period' => $month ? sprintf('%04d-%02d', $year, $month) : (string) $year,
+                'month' => $month,
+                'source_type' => $document->document_type,
+                'transaction_type' => $this->transactionType($document->document_type, $header),
+                'account_code' => $accountCode,
+                'metric' => $metric,
+                'value' => $value,
+                'unit' => 'IDR',
+                'dimensions' => ['sheet_name' => $record->sheet_name, 'source_row' => $record->source_row, 'column' => $header, 'origin' => 'reported'],
+                'lineage' => ['origin' => 'reported', 'source_document_id' => $document->id, 'source_record_id' => $record->id, 'sheet_name' => $record->sheet_name, 'source_row' => $record->source_row, 'column' => $header],
+            ]);
+        }
+    }
+
+    private function metric(string $header): string
+    {
+        $label = mb_strtolower(trim($header));
+        $label = preg_replace('/\s+/', ' ', $label) ?? $label;
+        $label = preg_replace('/[^a-z0-9]+/i', '_', $label) ?? $label;
+        return trim($label, '_');
+    }
+
+    private function transactionType(string $type, string $header): string
+    {
+        $label = mb_strtolower($header);
+        if ($type === 'ledger') return str_contains($label, 'debit') ? 'DEBIT' : (str_contains($label, 'kredit') ? 'CREDIT' : 'JOURNAL');
+        if ($type === 'financial_statement') return 'STATEMENT';
+        if ($type === 'revenue_reconciliation') return 'REVENUE_RECON';
+        return 'NON_RKUD_TRANSFER';
+    }
+
+    private function resolveSkpd(array|Collection $row, array $headers): ?Skpd
+    {
+        foreach ($headers as $index => $header) {
+            if (! in_array(mb_strtolower(trim($header)), ['skpd', 'nama skpd', 'kode skpd', 'unit kerja', 'nama unit kerja'], true)) continue;
+            $name = trim((string) ($row[$index] ?? ''));
+            if ($name === '') continue;
+            if ($skpd = Skpd::query()->where('name', $name)->first()) return $skpd;
+        }
+        return null;
+    }
+
+    private function accountCode(array|Collection $row, array $headers): ?string
+    {
+        foreach ($headers as $index => $header) {
+            if (in_array(mb_strtolower(trim($header)), ['kode rekening', 'kode akun', 'account code', 'kode'], true)) {
+                $value = trim((string) ($row[$index] ?? ''));
+                if ($value !== '') return $value;
+            }
+        }
+        return null;
+    }
+
+    private function number(mixed $value): ?float
+    {
+        if ($value === null || trim((string) $value) === '') return null;
+        if (is_int($value) || is_float($value)) return (float) $value;
+
+        $text = trim((string) $value);
+        $negative = str_starts_with($text, '(') && str_ends_with($text, ')');
+        $text = trim($text, "() \t\n\r");
+        if (! preg_match('/^-?[0-9][0-9.,]*$/', $text)) return null;
+
+        if (str_contains($text, ',') && str_contains($text, '.')) {
+            if (strrpos($text, ',') > strrpos($text, '.')) {
+                $text = str_replace('.', '', $text);
+                $text = str_replace(',', '.', $text);
+            } else $text = str_replace(',', '', $text);
+        } elseif (str_contains($text, ',')) {
+            $parts = explode(',', $text);
+            $text = count($parts) === 2 && strlen($parts[1]) <= 2 ? $parts[0] . '.' . $parts[1] : str_replace(',', '', $text);
+        } elseif (substr_count($text, '.') > 1) {
+            $text = str_replace('.', '', $text);
+        }
+
+        if (! is_numeric($text)) return null;
+        $number = (float) $text;
+        return $negative ? -abs($number) : $number;
+    }
+
+    private function isEmptyRow(array|Collection $row): bool
+    {
+        return collect($row)->every(fn ($value) => trim((string) ($value ?? '')) === '');
+    }
+}
