@@ -32,6 +32,7 @@ class RevenueReconciliationParser implements SourceWorkbookParser
 
             foreach($selected as $column=>$monthNumber){
                 $facts=[];
+                $sisaCount=0;
                 $payload=['sheet_name'=>(string)$sheetName,'skpd'=>$skpd?->name,'month'=>$monthNumber];
 
                 foreach($rows as $rowIndex=>$row){
@@ -40,7 +41,12 @@ class RevenueReconciliationParser implements SourceWorkbookParser
                     $value=$row[$column]??null;
                     if($value===null || $value==='') continue;
 
-                    $metric=$this->metricForLabel($label);
+                    if ($label === 'Sisa') {
+                        $sisaCount++;
+                        $metric = $sisaCount === 1 ? 'sisa_stbp' : 'sisa_lpj';
+                    } else {
+                        $metric=$this->metricForLabel($label);
+                    }
                     if($metric===null) continue;
 
                     $numeric=$this->number($value);
@@ -125,7 +131,6 @@ class RevenueReconciliationParser implements SourceWorkbookParser
             'BLUD'=>'blud','    BLUD Puskesmas'=>'blud_puskesmas','    BLUD RSKK'=>'blud_rskk','    BLUD RSUD SLG'=>'blud_rsud_slg','JKN'=>'jkn','BOS'=>'bos','BOS/BOP'=>'bos_bop','BOK'=>'bok','TPG Tamsil'=>'tpg_tamsil',
             'Selisih'=>'selisih_pendapatan_non_rkud','STS (yg punya no. STS)'=>'sts',
             'STBP (total semua, termasuk yg di STS kan)'=>'stbp',
-            'Sisa'=>'sisa',
             'Saldo Sebelumnya (SIPD) Penerimaan'=>'saldo_sebelumnya_sipd_penerimaan',
             'Akumulasi BKU B.Pen (SIPD) Penerimaan'=>'akumulasi_bku_sipd_penerimaan',
             'BKU B.Pen (SIPD) Penerimaan per Bln'=>'bku_penerimaan_sipd_bulanan',
