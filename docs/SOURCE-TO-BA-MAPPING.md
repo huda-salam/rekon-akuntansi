@@ -243,3 +243,30 @@ The following must not be inferred without evidence:
 - source lineage of BA values that are manually pasted;
 - semantics of free-text explanations.
 
+
+
+## 14. Period semantics for cross-source controls
+
+Cross-source reconciliation must not treat the requested BA month and the source file's stored period as interchangeable. Rules therefore declare an explicit `period_mode` per side:
+
+| Mode | Meaning |
+|---|---|
+| `MONTHLY` | facts belonging to the requested month only |
+| `YEAR_TO_DATE` | monthly facts from January through the requested month |
+| `ANNUAL_SNAPSHOT` | annual/closing facts whose imported month is NULL |
+| `ANY` | no period restriction |
+| `OPENING_BALANCE` | opening snapshot facts whose imported month is NULL |
+| `PRIOR_YEAR` | reserved for an explicitly supplied prior-year fact set; no implicit year inference |
+
+The implementation intentionally does not guess a prior-year source or reinterpret a NULL month as a monthly value.
+
+### Accounting category safeguard
+
+The current supplied financial-statement workbooks are imported as annual/snapshot facts (month NULL). Therefore the `accounting` reconciliation category is currently **annual-only**. A monthly accounting run is rejected rather than comparing an annual statement with a single monthly ledger slice.
+
+This is a correctness safeguard, not a business rule about how the final system must operate. If monthly LRA/LO/Neraca/LPE snapshots are later supplied, the rule metadata can be changed to use `MONTHLY` or `YEAR_TO_DATE` semantics after the source format is verified.
+
+### Duplicate comparison safeguard
+
+A cross-source rule produces one comparison per SKPD reconciliation grain, not one comparison for every source-document grain. This prevents the same SKPD/month control from being repeated merely because both sides contain multiple source documents.
+
