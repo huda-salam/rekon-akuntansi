@@ -83,6 +83,8 @@ class FinancialStatementParser implements SourceWorkbookParser
                             'source_row' => $rowIndex + 1,
                             'column' => $item['header'],
                             'account_code' => $accountCode,
+                            'account_level' => $this->accountLevel($accountCode),
+                            'summary_row' => $this->isSummaryRow($accountCode, $this->statementName($document->original_filename)),
                         ],
                     ]);
                 }
@@ -169,7 +171,25 @@ class FinancialStatementParser implements SourceWorkbookParser
         }
 
         $first = trim((string) ($row[0] ?? ''));
-        return preg_match('/^[0-9]+(?:\.[0-9]+)+$/', $first) ? $first : null;
+        return preg_match('/^[0-9]+(?:\.[0-9]+)*$/', $first) ? $first : null;
+    }
+
+    private function accountLevel(?string $code): int
+    {
+        if ($code === null || $code === '') return 0;
+        return count(explode('.', $code));
+    }
+
+    private function isSummaryRow(?string $code, string $statement): bool
+    {
+        if ($code === null) return false;
+
+        return match ($statement) {
+            'LRA' => in_array($code, ['4', '5'], true),
+            'LO' => in_array($code, ['7', '8'], true),
+            'NERACA' => in_array($code, ['1', '2', '3'], true),
+            default => false,
+        };
     }
 
     private function description(array|Collection $row, array $headers): ?string
