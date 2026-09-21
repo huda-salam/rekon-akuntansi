@@ -19,6 +19,7 @@ class SourceWorkbookImportService
         private readonly ExpenditureReconciliationParser $expenditureParser,
         private readonly GenericWorkbookParser $genericParser,
         private readonly NormalizedWorkbookParser $normalizedParser,
+        private readonly RevenueReconciliationParser $revenueParser,
     ) {}
 
     public function execute(
@@ -134,6 +135,10 @@ class SourceWorkbookImportService
         int $year,
         ?int $month,
     ): int {
+        if ($type === 'revenue_reconciliation') {
+            return $this->revenueParser->parse($sheets, $document, $year, $month);
+        }
+
         if ($type === 'expenditure_reconciliation') {
             foreach ($sheets as $sheetName => $rows) {
                 if ($this->expenditureParser->supports($rows)) {
