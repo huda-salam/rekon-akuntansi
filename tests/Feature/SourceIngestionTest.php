@@ -7,6 +7,7 @@ use App\Models\Skpd;
 use App\Models\SourceDocument;
 use App\Services\ExpenditureReconciliationParser;
 use App\Services\FinancialStatementParser;
+use App\Services\LedgerParser;
 use App\Services\NormalizedWorkbookParser;
 use App\Services\RevenueReconciliationParser;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -258,6 +259,46 @@ class SourceIngestionTest extends TestCase
             'account_code' => '4.1.01.01',
             'metric' => 'realisasi_2026',
             'value' => 950000,
+        ]);
+    }
+
+
+    public function test_ledger_parser_preserves_transaction_context(): void
+    {
+        $year = AccountingYear::create(['year' => 2026, 'is_active' => true]);
+
+        $document = SourceDocument::create([
+            'accounting_year_id' => $year->id,
+            'original_filename' => 'buku-besar-kecamatan-pare-belanja.xlsx',
+            'document_type' => 'ledger',
+            'source_category' => 'ACCOUNTING',
+            'checksum_sha256' => hash('sha256', 'ledger-parser-fixture'),
+            'status' => 'IMPORTED',
+        ]);
+
+        $sheets = new Collection([
+            'Buku Besar' => new Collection([
+                ['BUKU BESAR'],
+                ['Tanggal', 'Kode Rekening', 'Nama Rekening', 'Referensi', 'Debit', 'Kredit', 'Saldo'],
+                ['15/09/2026', '5.1.01', 'Belanja Barang', 'SP2D-001', 100000, 0, 100000],
+            ]),
+        ]);
+
+        $count = app(LedgerParser::class)->parse($sheets, $document, 2026);
+
+        $this->assertSame(1, $count);
+        $this->assertDatabaseHas('financial_facts', [
+            'source_document_id' => $document->id,
+            'account_code' => '5.1.01',
+            'document_number' => 'SP2D-001',
+            'metric' => 'debit',
+            'month' => 9,
+        ]);
+        $this->assertDatabaseHas('financial_facts', [
+            'source_document_id' => $document->id,
+            'account_code' => '5.1.01',
+            'metric' => 'balance',
+            'value' => 100000,
         ]);
     }
 
