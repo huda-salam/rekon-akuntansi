@@ -20,6 +20,12 @@ class ReconciliationRunService
         ?int $month = null,
         string $category = 'expenditure',
     ): ReconciliationRun {
+        // The current financial-statement sources are annual snapshots (month IS NULL).
+        // Do not silently compare an annual statement with a single monthly ledger slice.
+        if ($category === 'accounting' && $month !== null) {
+            throw new RuntimeException('The accounting reconciliation category currently requires an annual run because financial-statement sources are annual snapshots.');
+        }
+
         $documentTypes = match ($category) {
             'revenue' => ['revenue_reconciliation', 'ledger', 'financial_statement', 'non_rkud_transfer'],
             'expenditure' => ['expenditure_reconciliation', 'ledger', 'financial_statement'],
