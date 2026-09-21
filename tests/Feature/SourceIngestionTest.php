@@ -6,6 +6,7 @@ use App\Models\AccountingYear;
 use App\Models\Skpd;
 use App\Models\SourceDocument;
 use App\Services\ExpenditureReconciliationParser;
+use App\Services\NormalizedWorkbookParser;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
 use Tests\TestCase;
@@ -119,6 +120,49 @@ class SourceIngestionTest extends TestCase
             'value' => 125000,
             'month' => 9,
             'account_code' => '1.01',
+        ]);
+    }
+
+
+    public function test_normalized_parser_preserves_lineage_for_ledger_and_statement_sources(): void
+    {
+        $year = AccountingYear::create(['year' => 2026, 'is_active' => true]);
+
+        $document = SourceDocument::create([
+            'accounting_year_id' => $year->id,
+            'original_filename' => 'buku-besar-kecamatan-pare.xlsx',
+            'document_type' => 'ledger',
+            'source_category' => 'ACCOUNTING',
+            'checksum_sha256' => hash('sha256', 'ledger-fixture'),
+            'status' => 'IMPORTED',
+        ]);
+
+        $sheets = new Collection([
+            'Buku Besar' => new Collection([
+                ['PEMERINTAH KAB. KEDIRI'],
+                ['Tanggal', 'Kode Rekening', 'Nama Rekening', 'Debit', 'Kredit'],
+                ['2026-09-01', '5.1.01', 'Belanja', 100000, 25000],
+            ]),
+        ]);
+
+        $count = app(NormalizedWorkbookParser::class)->parse($sheets, $document, 2026, 9);
+
+        $this->assertSame(1, $count);
+
+        $this->assertDatabaseHas('financial_facts', [
+            'source_document_id' => $document->id,
+            'metric' => 'debit',
+            'value' => 100000,
+            'month' => 9,
+            'account_code' => '5.1.01',
+        ]);
+
+        $this->assertDatabaseHas('financial_facts', [
+            'source_document_id' => $document->id,
+            'metric' => 'kredit',
+            'value' => 25000,
+            'month' => 9,
+            'account_code' => '5.1.01',
         ]);
     }
 
