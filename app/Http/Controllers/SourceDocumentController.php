@@ -12,7 +12,7 @@ class SourceDocumentController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = SourceDocument::query()
-            ->with(['year:id,year', 'uploader:id,name'])
+            ->with(['year:id,year', 'uploader:id,name', 'importBatch:id,status,file_count,imported_count,failed_count'])
             ->latest('id');
 
         if (! $request->user()->isAdmin()) {
@@ -41,6 +41,7 @@ class SourceDocumentController extends Controller
         );
 
         return response()->json([
+            'batch' => $result['batch'],
             'imported' => collect($result['imported'])->map(fn ($document) => $document->load(['year:id,year']))->values(),
             'failed' => $result['failed'],
         ], empty($result['imported']) ? 422 : 201);
