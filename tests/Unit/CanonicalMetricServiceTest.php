@@ -44,6 +44,47 @@ class CanonicalMetricServiceTest extends TestCase
         $this->assertCount(0, app(CanonicalMetricService::class)->normalize(collect([$fact])));
     }
 
+    public function test_lra_detail_row_is_not_mistaken_for_total_revenue(): void
+    {
+        $fact = new FinancialFact([
+            'source_type' => 'financial_statement',
+            'transaction_type' => 'LRA',
+            'account_code' => '4.1.01',
+            'metric' => 'realisasi',
+            'value' => 500,
+            'dimensions' => [
+                'statement' => 'LRA',
+                'description' => 'Pajak Daerah',
+                'column' => 'REALISASI',
+                'summary_row' => false,
+            ],
+        ]);
+
+        $this->assertCount(0, app(CanonicalMetricService::class)->normalize(collect([$fact])));
+    }
+
+    public function test_lra_root_row_is_canonical_revenue(): void
+    {
+        $fact = new FinancialFact([
+            'source_type' => 'financial_statement',
+            'transaction_type' => 'LRA',
+            'account_code' => '4',
+            'metric' => 'realisasi',
+            'value' => 1000,
+            'dimensions' => [
+                'statement' => 'LRA',
+                'description' => 'PENDAPATAN DAERAH',
+                'column' => 'REALISASI',
+                'summary_row' => true,
+            ],
+        ]);
+
+        $result = app(CanonicalMetricService::class)->normalize(collect([$fact]));
+
+        $this->assertSame('lra_revenue', $result->first()['canonical_metric']);
+        $this->assertSame(1000.0, $result->first()['value']);
+    }
+
     public function test_realization_column_is_used_for_lra_actual(): void
     {
         $fact = new FinancialFact([
