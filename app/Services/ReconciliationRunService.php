@@ -69,6 +69,7 @@ class ReconciliationRunService
             $facts = FinancialFact::query()
                 ->where('accounting_year_id', $yearId)
                 ->when($month !== null, fn ($query) => $query->where('month', $month))
+            ->when($category !== null, fn ($query) => $query->whereJsonContains('parameters->category', $category))
                 ->whereIn('source_document_id', $documentIds)
                 ->whereIn('source_type', $documentTypes)
                 ->get();
@@ -91,7 +92,7 @@ class ReconciliationRunService
         }
     }
 
-    public function listForUser($user, int $yearId, ?int $month = null): Collection
+    public function listForUser($user, int $yearId, ?int $month = null, ?string $category = null): Collection
     {
         $query = ReconciliationRun::query()
             ->where('accounting_year_id', $yearId)
