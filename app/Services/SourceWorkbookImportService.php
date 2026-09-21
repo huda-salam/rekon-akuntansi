@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AccountingYear;
+use App\Models\ImportBatch;
 use App\Models\SourceDocument;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
@@ -29,6 +30,7 @@ class SourceWorkbookImportService
         int $year,
         int $userId,
         ?int $month = null,
+        ?ImportBatch $batch = null,
     ): SourceDocument {
         $accountingYear = AccountingYear::query()->where('year', $year)->first();
 
@@ -73,10 +75,11 @@ class SourceWorkbookImportService
         try {
             return DB::transaction(function () use (
                 $file, $checksum, $accountingYear, $userId, $month,
-                $sheets, $detection, $path
+                $sheets, $detection, $path, $batch
             ) {
                 $document = SourceDocument::create([
                     'accounting_year_id' => $accountingYear->id,
+                    'import_batch_id' => $batch?->id,
                     'uploaded_by' => $userId,
                     'original_filename' => $file->getClientOriginalName(),
                     'document_type' => $detection['type'],
@@ -108,7 +111,7 @@ class SourceWorkbookImportService
 
     /**
      * @param array<int, UploadedFile> $files
-     * @return array{imported: array<int, SourceDocument>, failed: array<int, array<string,mixed>>}
+     * @return array{batch: ImportBatch, imported: array<int, SourceDocument>, failed: array<int, array<string,mixed>>}
      */
     public function executeBatch(
         array $files,
@@ -116,12 +119,35 @@ class SourceWorkbookImportService
         int $userId,
         ?int $month = null,
     ): array {
+        $accountingYear = AccountingYear::query()->where('year', $year)->first();
+
+        if (! $accountingYear) {
+            throw ValidationException::withMessages([
+                'year' => "Tahun anggaran {$year} belum tersedia.",
+            ]);
+        }
+
+        if ($month !== null && ($month < 1 || $month > 12)) {
+            throw ValidationException::withMessages([
+                'month' => 'Bulan harus berada pada rentang 1 sampai 12.',
+            ]);
+        }
+
+        $batch = ImportBatch::create([
+            'accounting_year_id' => $accountingYear->id,
+            'initiated_by' => $userId,
+            'month' => $month,
+            'status' => 'RUNNING',
+            'file_count' => count($files),
+            'started_at' => now(),
+        ]);
+
         $imported = [];
         $failed = [];
 
         foreach ($files as $file) {
             try {
-                $imported[] = $this->execute($file, $year, $userId, $month);
+                $imported[] = $this->execute($file, $year, $userId, $month, $batch);
             } catch (Throwable $e) {
                 $failed[] = [
                     'filename' => $file->getClientOriginalName(),
@@ -130,7 +156,39 @@ class SourceWorkbookImportService
             }
         }
 
-        return compact('imported', 'failed');
+        $documentIds = collect($imported)->pluck('id');
+
+        $sourceRecordCount = $documentIds->isEmpty()
+            ? 0
+            : DB::table('source_records')->whereIn('source_document_id', $documentIds)->count();
+
+        $financialFactCount = $documentIds->isEmpty()
+            ? 0
+            : DB::table('financial_facts')->whereIn('source_document_id', $documentIds)->count();
+
+        $status = count($failed) === 0
+            ? 'COMPLETED'
+            : (count($imported) === 0 ? 'FAILED' : 'PARTIAL');
+
+        $batch->update([
+            'status' => $status,
+            'imported_count' => count($imported),
+            'failed_count' => count($failed),
+            'source_record_count' => $sourceRecordCount,
+            'financial_fact_count' => $financialFactCount,
+            'summary' => [
+                'failed' => $failed,
+                'document_types' => collect($imported)->countBy('document_type')->all(),
+                'source_categories' => collect($imported)->countBy('source_category')->all(),
+            ],
+            'completed_at' => now(),
+        ]);
+
+        return [
+            'batch' => $batch->fresh(),
+            'imported' => $imported,
+            'failed' => $failed,
+        ];
     }
 
     private function reportScope(string $filename, string $type): string
