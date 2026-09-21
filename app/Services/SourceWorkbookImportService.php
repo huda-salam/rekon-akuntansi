@@ -50,7 +50,9 @@ class SourceWorkbookImportService
             ]);
         }
 
-        $spreadsheet = IOFactory::load($file->getRealPath());
+        $reader = IOFactory::createReaderForFile($file->getRealPath());
+        $reader->setReadDataOnly(true);
+        $spreadsheet = $reader->load($file->getRealPath());
         $sheets = $this->readSheets($spreadsheet);
         $detection = $this->detector->detect($sheets, $file->getClientOriginalName());
 
