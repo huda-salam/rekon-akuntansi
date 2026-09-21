@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\BeritaAcara;
 use App\Models\Reconciliation;
 use App\Models\ReconciliationSnapshot;
+use App\Models\ReconciliationRun;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -34,8 +35,49 @@ class FinalizeReconciliationService
             }
 
             $finalizedAt = now();
+            $run = null;
+            $runResults = [];
+
+            if (! empty($ba['reconciliation_run_id'])) {
+                $run = ReconciliationRun::query()
+                    ->with(['results.rule', 'results.skpd'])
+                    ->findOrFail($ba['reconciliation_run_id']);
+
+                if ((int) $run->accounting_year_id !== (int) $reconciliation->accounting_year_id
+                    || ($run->month !== null && (int) $run->month !== (int) $reconciliation->month)) {
+                    throw ValidationException::withMessages([
+                        'reconciliation_run_id' => 'Run rekonsiliasi tidak sesuai tahun/periode BA.',
+                    ]);
+                }
+
+                if ($run->status !== 'completed') {
+                    throw ValidationException::withMessages([
+                        'reconciliation_run_id' => 'Run rekonsiliasi harus berstatus completed sebelum menjadi bagian dari BA snapshot.',
+                    ]);
+                }
+
+                $runResults = $run->results->map(fn ($result) => [
+                    'id' => $result->id,
+                    'rule_id' => $result->reconciliation_rule_id,
+                    'rule_code' => $result->rule?->code,
+                    'rule_name' => $result->rule?->name,
+                    'category' => $result->rule?->category,
+                    'skpd_id' => $result->skpd_id,
+                    'month' => $result->month,
+                    'period' => $result->period,
+                    'status' => $result->status,
+                    'expected_value' => $result->expected_value !== null ? (string) $result->expected_value : null,
+                    'actual_value' => $result->actual_value !== null ? (string) $result->actual_value : null,
+                    'variance' => $result->variance !== null ? (string) $result->variance : null,
+                    'inputs' => $result->inputs,
+                    'lineage' => $result->lineage,
+                    'explanation' => $result->explanation,
+                ])->values()->all();
+            }
+
             $snapshotData = [
                 'reconciliation_id' => $reconciliation->id,
+                'reconciliation_run_id' => $run?->id,
                 'accounting_year' => $reconciliation->accountingYear->year,
                 'skpd_code' => $reconciliation->skpd->code,
                 'skpd_name' => $reconciliation->skpd->name,
@@ -53,6 +95,8 @@ class FinalizeReconciliationService
                     'nip' => $ba['signatory_official_nip'] ?? null,
                     'position' => $ba['signatory_official_position'],
                 ],
+                'run_summary' => $run?->summary,
+                'run_results' => $runResults,
                 'details' => $reconciliation->details->map(function ($detail) {
                     return [
                         'source_type' => $detail->source_type,
@@ -70,6 +114,7 @@ class FinalizeReconciliationService
             $json = json_encode($snapshotData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
             $snapshot = ReconciliationSnapshot::create([
                 'reconciliation_id' => $reconciliation->id,
+                'reconciliation_run_id' => $run?->id,
                 'accounting_year' => $reconciliation->accountingYear->year,
                 'skpd_code' => $reconciliation->skpd->code,
                 'skpd_name' => $reconciliation->skpd->name,
