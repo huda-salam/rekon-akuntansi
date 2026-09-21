@@ -99,16 +99,18 @@ class CanonicalMetricService
 
         if ($fact->source_type !== 'financial_statement') return null;
 
+        $summary = (bool) ($fact->dimensions['summary_row'] ?? false);
+
         if ($statement === 'LRA') {
-            if ($this->containsAny($description, ['pendapatan daerah', 'pendapatan'])) return 'lra_revenue';
-            if ($this->containsAny($description, ['belanja modal'])) return 'lra_capital_expenditure';
-            if ($this->containsAny($description, ['belanja'])) return 'lra_expenditure';
+            if ($summary && (string) $fact->account_code === '4') return 'lra_revenue';
+            if ($summary && (string) $fact->account_code === '5') return 'lra_expenditure';
+            if ($this->containsAny($description, ['belanja modal']) && (string) $fact->account_code === '5.2') return 'lra_capital_expenditure';
             if ($this->containsAny($description, ['surplus / (defisit)', 'surplus/(defisit)', 'surplus defisit'])) return 'lra_surplus_deficit';
         }
 
         if ($statement === 'LO') {
-            if ($this->containsAny($description, ['pendapatan daerah- lo', 'pendapatan daerah-lo', 'pendapatan'])) return 'lo_revenue';
-            if ($this->containsAny($description, ['beban'])) return 'lo_expense';
+            if ($summary && (string) $fact->account_code === '7') return 'lo_revenue';
+            if ($summary && (string) $fact->account_code === '8') return 'lo_expense';
             if ($this->containsAny($description, ['surplus / (defisit) - lo', 'surplus/(defisit) - lo'])) return 'lo_surplus_deficit';
         }
 
@@ -117,7 +119,7 @@ class CanonicalMetricService
             if ($this->containsAny($description, ['piutang'])) return 'balance_receivable';
             if ($this->containsAny($description, ['persediaan'])) return 'balance_inventory';
             if ($this->containsAny($description, ['aset tetap'])) return 'balance_fixed_assets';
-            if ($this->containsAny($description, ['ekuitas'])) return 'balance_equity';
+            if ($summary && (string) $fact->account_code === '3') return 'balance_equity';
         }
 
         if ($statement === 'LPE') {
