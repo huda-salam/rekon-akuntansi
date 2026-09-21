@@ -35,7 +35,7 @@ class CanonicalMetricService
 
             return [
                 'canonical_metric' => $metric,
-                'value' => (float) $fact->value,
+                'value' => $this->signedValue($fact, $metric),
                 'financial_fact_id' => $fact->id,
                 'source_document_id' => $fact->source_document_id,
                 'source_type' => $fact->source_type,
@@ -45,6 +45,21 @@ class CanonicalMetricService
                 'dimensions' => $fact->dimensions ?? [],
             ];
         })->filter()->values();
+    }
+
+    private function signedValue(FinancialFact $fact, string $metric): float
+    {
+        $value = (float) $fact->value;
+
+        if ($fact->source_type !== 'ledger') {
+            return $value;
+        }
+
+        return match ($metric) {
+            'lra_revenue' => strtoupper((string) $fact->transaction_type) === 'DEBIT' ? -$value : $value,
+            'lra_expenditure', 'lra_capital_expenditure' => strtoupper((string) $fact->transaction_type) === 'CREDIT' ? -$value : $value,
+            default => $value,
+        };
     }
 
     private function canonicalMetric(FinancialFact $fact): ?string
