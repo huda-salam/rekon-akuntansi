@@ -30,7 +30,7 @@ class ReconciliationReviewController extends Controller
         }
 
         if ($request->filled('status')) {
-            $query->where('status', $request->string('status'));
+            $query->whereHas('reviews', fn ($review) => $review->where('status', $request->string('status')));
         }
 
         if ($request->filled('skpd_id') && $request->user()->isAdmin()) {
