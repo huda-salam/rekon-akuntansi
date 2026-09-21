@@ -84,6 +84,39 @@ class ReconciliationRuleSeeder extends Seeder
             ],
         ];
 
+        $revenueRules = [
+            ['code'=>'REV-001','name'=>'BKU penerimaan manual vs BPKAD','expression'=>'bku_penerimaan_manual_skpd - bku_pengeluaran_manual_bpkad','inputs'=>['bku_penerimaan_manual_skpd','bku_pengeluaran_manual_bpkad']],
+            ['code'=>'REV-002','name'=>'Selisih akumulasi vs pendapatan non-RKUD','expression'=>'selisih_akumulasi - pendapatan_non_rkud','inputs'=>['selisih_akumulasi','pendapatan_non_rkud']],
+            ['code'=>'REV-003','name'=>'Pendapatan non-RKUD vs komponennya','expression'=>'pendapatan_non_rkud - pendapatan_non_rkud_derived','inputs'=>['pendapatan_non_rkud','pendapatan_non_rkud_derived']],
+            ['code'=>'REV-004','name'=>'STBP dikurangi STS menghasilkan sisa','expression'=>'stbp - sts - sisa','inputs'=>['stbp','sts','sisa']],
+            ['code'=>'REV-005','name'=>'Akumulasi BKU penerimaan SIPD','expression'=>'akumulasi_bku_sipd_penerimaan - saldo_sebelumnya_sipd_penerimaan - bku_penerimaan_sipd_bulanan','inputs'=>['akumulasi_bku_sipd_penerimaan','saldo_sebelumnya_sipd_penerimaan','bku_penerimaan_sipd_bulanan']],
+            ['code'=>'REV-006','name'=>'Akumulasi BKU pengeluaran SIPD','expression'=>'akumulasi_bku_sipd_pengeluaran - saldo_sebelumnya_sipd_pengeluaran - bku_pengeluaran_sipd_bulanan','inputs'=>['akumulasi_bku_sipd_pengeluaran','saldo_sebelumnya_sipd_pengeluaran','bku_pengeluaran_sipd_bulanan']],
+            ['code'=>'REV-007','name'=>'Saldo SIPD per bulan','expression'=>'bku_penerimaan_sipd_bulanan - bku_pengeluaran_sipd_bulanan - saldo_sipd_bulanan','inputs'=>['bku_penerimaan_sipd_bulanan','bku_pengeluaran_sipd_bulanan','saldo_sipd_bulanan']],
+            ['code'=>'REV-008','name'=>'LPJ penerimaan vs BKU SIPD penerimaan','expression'=>'lpj_penerimaan - bku_penerimaan_sipd_bulanan','inputs'=>['lpj_penerimaan','bku_penerimaan_sipd_bulanan']],
+            ['code'=>'REV-009','name'=>'LPJ penerimaan dikurangi penyetoran menghasilkan sisa','expression'=>'lpj_penerimaan - lpj_penyetoran - sisa','inputs'=>['lpj_penerimaan','lpj_penyetoran','sisa']],
+            ['code'=>'REV-010','name'=>'Register SIPD: STS + sisa = LPJ penyetoran','expression'=>'sts + sisa - lpj_penyetoran','inputs'=>['sts','sisa','lpj_penyetoran']],
+        ];
+
+        foreach ($revenueRules as $rule) {
+            ReconciliationRule::updateOrCreate(
+                ['accounting_year_id'=>null,'code'=>$rule['code'],'version'=>'1'],
+                [
+                    'calculation_definition_id'=>null,
+                    'name'=>$rule['name'],
+                    'category'=>'revenue',
+                    'scope'=>'source_record',
+                    'status'=>'active',
+                    'expression'=>$rule['expression'],
+                    'tolerance'=>0,
+                    'input_metrics'=>$rule['inputs'],
+                    'metadata'=>[
+                        'source'=>'docs/input/rekonsiliasi pendapatan.xlsx',
+                        'expected'=>0,
+                    ],
+                ]
+            );
+        }
+
         foreach ($rules as $rule) {
             $calculation = CalculationDefinition::query()
                 ->where('code', $rule['calculation'])
