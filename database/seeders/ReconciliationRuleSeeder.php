@@ -166,6 +166,7 @@ class ReconciliationRuleSeeder extends Seeder
                         'left' => $rule['left'],
                         'right' => $rule['right'],
                         'expected' => 0,
+                        'ba_mapping' => ['section' => 'Pengeluaran', 'status' => 'MAPPED'],
                     ],
                 ]
             );
