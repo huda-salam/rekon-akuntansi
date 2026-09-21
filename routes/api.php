@@ -49,5 +49,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/reconciliations', [ReconciliationCrudController::class, 'store']);
     Route::get('/reconciliations/{reconciliation}', [ReconciliationController::class, 'show']);
     Route::put('/reconciliations/{reconciliation}', [ReconciliationCrudController::class, 'update']);
+    Route::get('/reconciliations/{reconciliation}/ba', [ReconciliationController::class, 'ba']);
     Route::post('/reconciliations/{reconciliation}/finalize', [ReconciliationController::class, 'finalize']);
 });
