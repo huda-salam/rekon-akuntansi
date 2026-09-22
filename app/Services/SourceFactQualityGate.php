@@ -93,7 +93,33 @@ class SourceFactQualityGate
 
             $missingDates = $ledgerFacts->whereNull('fact_date')->count();
             if ($missingDates > 0) {
-                $warnings[] = sprintf('%d fact ledger tidak memiliki tanggal transaksi.', $missingDates);
+                $errors[] = sprintf('%d fact ledger tidak memiliki tanggal transaksi.', $missingDates);
+            }
+
+            $periodMismatches = $ledgerFacts->filter(
+                fn (FinancialFact $fact) =>
+                    $fact->fact_date !== null
+                    && (string) $fact->period !== substr((string) $fact->fact_date, 0, 7)
+            );
+
+            if ($periodMismatches->isNotEmpty()) {
+                $errors[] = sprintf(
+                    '%d fact ledger memiliki period yang tidak sesuai dengan fact_date.',
+                    $periodMismatches->count()
+                );
+            }
+
+            $monthMismatches = $ledgerFacts->filter(
+                fn (FinancialFact $fact) =>
+                    $fact->fact_date !== null
+                    && (int) $fact->month !== (int) substr((string) $fact->fact_date, 5, 2)
+            );
+
+            if ($monthMismatches->isNotEmpty()) {
+                $errors[] = sprintf(
+                    '%d fact ledger memiliki month yang tidak sesuai dengan fact_date.',
+                    $monthMismatches->count()
+                );
             }
         }
 
@@ -135,7 +161,6 @@ class SourceFactQualityGate
         }
 
         return ! empty($lineage['input_fact_ids'])
-            || ! empty($lineage['input_metrics'])
-            || ! empty($lineage['source_record_id']);
+            || ! empty($lineage['input_metrics']);
     }
 }
