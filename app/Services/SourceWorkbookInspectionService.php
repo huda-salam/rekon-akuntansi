@@ -95,6 +95,7 @@ class SourceWorkbookInspectionService
 
         $detection = $this->detector->detect($sheets, $file->getFilename());
         $validation = $this->validation($detection['type'], (float) $detection['confidence']);
+        $profile = $this->buildStructureProfile($sheets);
 
         return [
             'filename' => $file->getFilename(),
@@ -110,8 +111,40 @@ class SourceWorkbookInspectionService
             'parser' => $validation['parser'],
             'readiness' => $validation['readiness'],
             'warnings' => $validation['warnings'],
+            'structure_profile' => $profile,
             'sheet_stats' => $sheetStats,
         ];
+    }
+
+    /**
+     * Build a compact structural profile from the header area already loaded
+     * during inspection. This is diagnostic metadata only; it is never persisted.
+     *
+     * @param Collection<string, Collection<int, array<int, mixed>>> $sheets
+     * @return array<int,array{name:string,non_empty_rows:int,labels:array<int,string>}>
+     */
+    private function buildStructureProfile(Collection $sheets): array
+    {
+        return $sheets->map(function (Collection $rows, string $sheetName): array {
+            $labels = $rows
+                ->take(20)
+                ->flatten()
+                ->map(fn ($value) => trim((string) ($value ?? '')))
+                ->filter(fn (string $value) => $value !== '')
+                ->map(fn (string $value) => mb_strtolower($value))
+                ->unique()
+                ->values();
+
+            return [
+                'name' => $sheetName,
+                'non_empty_rows' => $rows->filter(
+                    fn (array $row) => collect($row)->contains(
+                        fn ($value) => trim((string) ($value ?? '')) !== ''
+                    )
+                )->count(),
+                'labels' => $labels->take(40)->all(),
+            ];
+        })->values()->all();
     }
 
     /**
