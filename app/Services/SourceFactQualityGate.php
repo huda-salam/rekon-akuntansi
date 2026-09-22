@@ -77,8 +77,18 @@ class SourceFactQualityGate
 
             if ($ledgerFacts->isEmpty()) {
                 $errors[] = 'Ledger tidak menghasilkan fact debit/kredit/saldo.';
-            } elseif ($ledgerFacts->whereNotNull('account_code')->isEmpty()) {
+            } elseif ($ledgerFacts->filter(
+                fn (FinancialFact $fact) => trim((string) ($fact->account_code ?? '')) !== ''
+            )->isEmpty()) {
                 $errors[] = 'Ledger menghasilkan fact tetapi tidak memiliki account_code.';
+            }
+
+            $missingAccounts = $ledgerFacts->filter(
+                fn (FinancialFact $fact) => trim((string) ($fact->account_code ?? '')) === ''
+            )->count();
+
+            if ($missingAccounts > 0) {
+                $warnings[] = sprintf('%d fact ledger tidak memiliki account_code.', $missingAccounts);
             }
 
             $missingDates = $ledgerFacts->whereNull('fact_date')->count();
@@ -110,7 +120,9 @@ class SourceFactQualityGate
                 'zero_value_facts' => $zeroFacts,
                 'derived_facts' => $facts->where('transaction_type', 'calculation')->count(),
                 'ledger_facts_without_account' => $document->document_type === 'ledger'
-                    ? $facts->whereIn('metric', ['debit', 'credit', 'balance'])->whereNull('account_code')->count()
+                    ? $facts->whereIn('metric', ['debit', 'credit', 'balance'])->filter(
+                        fn (FinancialFact $fact) => trim((string) ($fact->account_code ?? '')) === ''
+                    )->count()
                     : 0,
             ],
         ];
