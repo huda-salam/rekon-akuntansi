@@ -131,9 +131,10 @@ class SourceWorkbookInspectionService
     }
 
     /**
+     * @param  callable(string):void|null  $onFile
      * @return array{files:array<int,array<string,mixed>>,summary:array<string,mixed>}
      */
-    public function inspectDirectory(string $directory): array
+    public function inspectDirectory(string $directory, ?callable $onFile = null): array
     {
         if (! is_dir($directory)) {
             throw new \InvalidArgumentException("Directory tidak ditemukan: {$directory}");
@@ -147,6 +148,10 @@ class SourceWorkbookInspectionService
         foreach ($iterator as $file) {
             if (! $file->isFile() || ! in_array(strtolower($file->getExtension()), ['xlsx', 'xls'], true)) {
                 continue;
+            }
+
+            if ($onFile !== null) {
+                $onFile($file->getPathname());
             }
 
             try {
@@ -163,6 +168,9 @@ class SourceWorkbookInspectionService
                     'source_category' => null,
                     'confidence' => 0.0,
                     'evidence' => [$e->getMessage()],
+                    'parser' => null,
+                    'readiness' => 'BLOCKED',
+                    'warnings' => ['Workbook gagal diinspeksi: ' . $e->getMessage()],
                     'sheet_stats' => [],
                 ];
             }
