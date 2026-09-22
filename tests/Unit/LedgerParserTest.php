@@ -36,4 +36,13 @@ class LedgerParserTest extends TestCase
             $method->invoke($parser, $values, $headers)
         );
     }
+    public function test_it_rejects_populated_but_invalid_dates(): void
+    {
+        $parser = new LedgerParser();
+        $method = new \ReflectionMethod($parser, 'date');
+        $method->setAccessible(true);
+
+        $this->assertNull($method->invoke($parser, 'not-a-date'));
+    }
+
 }
