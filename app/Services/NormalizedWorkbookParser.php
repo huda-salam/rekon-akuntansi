@@ -60,6 +60,7 @@ class NormalizedWorkbookParser implements SourceWorkbookParser
     private function shouldParseSheet(string $sheetName, Collection $rows, string $type, string $filename): bool
     {
         $name = mb_strtolower(trim($sheetName));
+        $filenameText = mb_strtolower($filename);
 
         if (str_starts_with($name, 'cetak') || in_array($name, ['data bulan', 'worksheet'], true)) {
             return false;
@@ -68,20 +69,23 @@ class NormalizedWorkbookParser implements SourceWorkbookParser
         $text = $this->sheetText($rows);
 
         if ($type === 'blud') {
-            return str_contains($text, 'nomor sp3bp')
-                && str_contains($text, 'nomor sp2bp');
+            return $name === 'tabel sp2bp' || (
+                str_starts_with($name, 'blud-')
+                && str_contains($text, 'nomor sp3bp')
+                && str_contains($text, 'nomor sp2bp')
+            );
         }
 
         if ($type === 'non_rkud_transfer') {
-            if (str_contains(mb_strtolower($filename), 'dana desa')) {
+            if (str_contains($filenameText, 'dana desa')) {
                 return $name === 'data dd';
             }
 
-            if (str_contains(mb_strtolower($filename), 'bok')) {
+            if (str_contains($filenameText, 'bok')) {
                 return $name === 'bok';
             }
 
-            if (str_contains(mb_strtolower($filename), 'bosp')) {
+            if (str_contains($filenameText, 'bosp')) {
                 return $name === 'bosp';
             }
 
@@ -178,6 +182,8 @@ class NormalizedWorkbookParser implements SourceWorkbookParser
                 'revenue_reconciliation' => ['kode', 'kode rekening', 'rekening', 'uraian', 'realisasi', 'pendapatan', 'skpd', 'nama skpd'],
                 'ledger' => ['tanggal', 'kode rekening', 'nama rekening', 'uraian', 'debit', 'kredit', 'saldo', 'referensi'],
                 'financial_statement' => ['kode rekening', 'uraian', 'anggaran', 'realisasi', 'saldo', 'jumlah', 'tahun', 'konsolidasi'],
+                'blud' => ['nomor sp3bp', 'tanggal sp3bp', 'nomor sp2bp', 'tanggal sp2bp', 'saldo awal', 'pendapatan', 'belanja'],
+                'non_rkud_transfer' => ['nomor sp2b', 'tanggal sp2b', 'nomor sp2d bun', 'nomor sp2bdd', 'saldo awal', 'saldo akhir', 'pendapatan', 'belanja'],
                 default => ['kode rekening', 'uraian', 'tanggal', 'jumlah', 'nominal', 'nilai', 'pagu', 'realisasi'],
             };
 
