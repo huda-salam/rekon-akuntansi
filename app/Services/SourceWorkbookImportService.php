@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\AccountingYear;
 use App\Models\ImportBatch;
 use App\Models\SourceDocument;
+use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -87,7 +88,7 @@ class SourceWorkbookImportService
                 $document = SourceDocument::create([
                     'accounting_year_id' => $accountingYear->id,
                     'import_batch_id' => $batch?->id,
-                    'uploaded_by' => $userId,
+                    'uploaded_by' => $dryRunUserId,
                     'original_filename' => $file->getClientOriginalName(),
                     'document_type' => $detection['type'],
                     'source_category' => $detection['category'],
@@ -178,6 +179,20 @@ class SourceWorkbookImportService
         DB::beginTransaction();
 
         try {
+            $temporaryUserCreated = false;
+            $dryRunUserId = $userId > 0 ? $userId : (int) (User::query()->value('id') ?? 0);
+
+            if ($dryRunUserId > 0 && ! User::query()->whereKey($dryRunUserId)->exists()) {
+                throw ValidationException::withMessages([
+                    'user-id' => "User id {$dryRunUserId} tidak ditemukan.",
+                ]);
+            }
+
+            if ($dryRunUserId === 0) {
+                $dryRunUserId = User::factory()->admin()->create()->id;
+                $temporaryUserCreated = true;
+            }
+
             $document = SourceDocument::create([
                 'accounting_year_id' => $accountingYear->id,
                 'import_batch_id' => null,
@@ -229,6 +244,7 @@ class SourceWorkbookImportService
                 'quality' => $quality,
                 'sample_facts' => $sampleFacts,
                 'rolled_back' => true,
+                'temporary_user_created' => $temporaryUserCreated,
             ];
         } catch (Throwable $e) {
             DB::rollBack();
