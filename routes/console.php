@@ -10,8 +10,15 @@ Artisan::command('rekon:about', function () {
 Artisan::command('rekon:inspect-sources
     {path : Directory containing source .xls/.xlsx files}
     {--json= : Optional output JSON file path}', function (string $path, ?string $json = null) {
-    $report = app(SourceWorkbookInspectionService::class)->inspectDirectory($path);
+    $this->info('Scanning source workbooks...');
+    $this->line('Directory: ' . realpath($path));
 
+    $report = app(SourceWorkbookInspectionService::class)->inspectDirectory(
+        $path,
+        fn (string $file) => $this->line('  Inspecting: ' . basename($file))
+    );
+
+    $this->newLine();
     $this->info('Source Workbook Inspection');
     $this->line('Directory: ' . realpath($path));
     $this->newLine();
