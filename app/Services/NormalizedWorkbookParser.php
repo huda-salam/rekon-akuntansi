@@ -24,6 +24,8 @@ class NormalizedWorkbookParser implements SourceWorkbookParser
         }
 
         $records = 0;
+        $this->setDocumentFilename($document->original_filename);
+
         foreach ($sheets as $sheetName => $rows) {
             if (! $this->shouldParseSheet($sheetName, $rows, $document->document_type)) {
                 continue;
@@ -56,6 +58,13 @@ class NormalizedWorkbookParser implements SourceWorkbookParser
         return $records;
     }
 
+    private string $documentFilename = '';
+
+    public function setDocumentFilename(string $filename): void
+    {
+        $this->documentFilename = $filename;
+    }
+
     private function shouldParseSheet(string $sheetName, Collection $rows, string $type): bool
     {
         $name = mb_strtolower(trim($sheetName));
@@ -72,6 +81,22 @@ class NormalizedWorkbookParser implements SourceWorkbookParser
         }
 
         if ($type === 'non_rkud_transfer') {
+            if (str_contains(mb_strtolower($this->documentFilename ?? ''), 'dana desa')) {
+                return $name === 'data dd';
+            }
+
+            if (str_contains(mb_strtolower($this->documentFilename ?? ''), 'bok')) {
+                return $name === 'bok';
+            }
+
+            if (str_contains(mb_strtolower($this->documentFilename ?? ''), 'bosp')) {
+                return $name === 'bosp';
+            }
+
+            if (in_array($name, ['blud', 'bok', 'bosp', 'data dd', 'data bulan'], true)) {
+                return false;
+            }
+
             return str_contains($text, 'nomor sp2b')
                 || str_contains($text, 'nomor sp2d bun')
                 || str_contains($text, 'nomor sp2bdd')
@@ -238,6 +263,7 @@ class NormalizedWorkbookParser implements SourceWorkbookParser
         if ($type === 'ledger') return str_contains($label, 'debit') ? 'DEBIT' : (str_contains($label, 'kredit') ? 'CREDIT' : 'JOURNAL');
         if ($type === 'financial_statement') return 'STATEMENT';
         if ($type === 'revenue_reconciliation') return 'REVENUE_RECON';
+        if ($type === 'blud') return 'BLUD';
         return 'NON_RKUD_TRANSFER';
     }
 
