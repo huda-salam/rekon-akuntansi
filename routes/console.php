@@ -7,6 +7,128 @@ Artisan::command('rekon:about', function () {
     $this->info('Rekon Akuntansi - aplikasi rekonsiliasi akuntansi pemerintah daerah.');
 });
 
+
+Artisan::command('rekon:dry-run-sources
+    {path : Directory containing source .xls/.xlsx files}
+    {year : Accounting year}
+    {--user-id= : Existing user id used only inside the rolled-back dry-run transaction}
+    {--json= : Optional output JSON file path}', function (string $path, int $year, ?string $userId = null, ?string $json = null) {
+    if (! is_dir($path)) {
+        $this->error("Directory tidak ditemukan: {$path}");
+        return self::FAILURE;
+    }
+
+    $resolvedUserId = $userId !== null
+        ? (int) $userId
+        : (int) (\App\Models\User::query()->value('id') ?? 0);
+
+    if ($resolvedUserId <= 0) {
+        $this->error('Tidak ada user yang dapat digunakan untuk dry-run. Gunakan --user-id=<id>.');
+        return self::FAILURE;
+    }
+
+    $files = [];
+    $iterator = new \RecursiveIteratorIterator(
+        new \RecursiveDirectoryIterator($path, \FilesystemIterator::SKIP_DOTS)
+    );
+
+    foreach ($iterator as $file) {
+        if ($file->isFile() && in_array(strtolower($file->getExtension()), ['xlsx', 'xls'], true)) {
+            $files[] = $file->getPathname();
+        }
+    }
+
+    sort($files, SORT_NATURAL | SORT_FLAG_CASE);
+
+    $this->info("Dry-run parser validation: {$year}");
+    $this->line('Directory: ' . realpath($path));
+    $this->line('Files: ' . count($files));
+    $this->newLine();
+
+    $results = [];
+    $failed = [];
+
+    foreach ($files as $index => $file) {
+        $this->line(sprintf('[%d/%d] %s', $index + 1, count($files), basename($file)));
+
+        try {
+            $result = app(\App\Services\SourceWorkbookImportService::class)
+                ->dryRun($file, $year, $resolvedUserId);
+
+            $results[] = $result;
+
+            $this->info(sprintf(
+                '  OK type=%s records=%d facts=%d rollback=%s',
+                $result['document_type'],
+                $result['source_records'],
+                $result['financial_facts'],
+                $result['rolled_back'] ? 'YES' : 'NO'
+            ));
+
+            foreach (array_slice($result['sample_facts'], 0, 3) as $fact) {
+                $this->line(sprintf(
+                    '    %s=%s | value=%s | account=%s | period=%s',
+                    $fact['metric'],
+                    $fact['transaction_type'],
+                    $fact['value'],
+                    $fact['account_code'] ?? '-',
+                    $fact['period'] ?? '-'
+                ));
+            }
+        } catch (\Throwable $e) {
+            $failed[] = [
+                'filename' => basename($file),
+                'message' => $e->getMessage(),
+                'exception' => get_class($e),
+            ];
+            $this->error('  ERROR: ' . $e->getMessage());
+        }
+    }
+
+    $this->newLine();
+    $this->table(
+        ['Metric', 'Value'],
+        [
+            ['Files', count($files)],
+            ['Parsed OK', count($results)],
+            ['Failed', count($failed)],
+            ['Transactions rolled back', collect($results)->every(fn (array $item) => $item['rolled_back'] === true) ? 'YES' : 'NO'],
+            ['Source records', (int) collect($results)->sum('source_records')],
+            ['Financial facts', (int) collect($results)->sum('financial_facts')],
+        ]
+    );
+
+    if ($failed !== []) {
+        $this->newLine();
+        $this->warn('Dry-run failures');
+
+        foreach ($failed as $item) {
+            $this->line("  {$item['filename']}: {$item['message']}");
+        }
+    }
+
+    if ($json !== null) {
+        $directory = dirname($json);
+        if ($directory !== '.' && ! is_dir($directory)) {
+            mkdir($directory, 0777, true);
+        }
+
+        file_put_contents(
+            $json,
+            json_encode([
+                'year' => $year,
+                'directory' => realpath($path),
+                'results' => $results,
+                'failed' => $failed,
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+        );
+
+        $this->info("JSON report: {$json}");
+    }
+
+    return $failed === [] ? self::SUCCESS : self::FAILURE;
+})->purpose('Run source parsers in a database transaction and roll back all changes.');
+
 Artisan::command('rekon:inspect-sources
     {path : Directory containing source .xls/.xlsx files}
     {--json= : Optional output JSON file path}', function (string $path, ?string $json = null) {
