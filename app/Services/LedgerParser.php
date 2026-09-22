@@ -32,7 +32,7 @@ class LedgerParser implements SourceWorkbookParser
             foreach ($rows as $rowIndex => $row) {
                 if ($rowIndex <= $headerIndex || $this->empty($row)) continue;
 
-                $accountCode = $this->field($row, $headers, ['kode rekening', 'kode akun', 'kode']);
+                $accountCode = $this->accountCode($row, $headers);
                 $date = $this->field($row, $headers, ['tanggal', 'tgl', 'date']);
                 $documentNumber = $this->field($row, $headers, ['nomor', 'no', 'nomor bukti', 'referensi', 'no jurnal']);
 
@@ -124,6 +124,41 @@ class LedgerParser implements SourceWorkbookParser
         }
 
         return $result;
+    }
+
+    private function accountCode(array|Collection $row, array $headers): ?string
+    {
+        foreach ($headers as $index => $header) {
+            $label = mb_strtolower(trim($header));
+
+            if (
+                in_array($label, ['kode rekening', 'kode akun', 'account code', 'kode'], true)
+                || str_starts_with($label, 'kode rekening ')
+                || str_starts_with($label, 'kode akun ')
+            ) {
+                $value = trim((string) ($row[$index] ?? ''));
+                if ($this->looksLikeAccountCode($value)) {
+                    return $value;
+                }
+            }
+        }
+
+        // Some exported ledgers lose the exact header label. As a safe
+        // fallback, recover only values matching dotted numeric account-code
+        // notation; dates, amounts and document numbers do not match this shape.
+        foreach ($row as $value) {
+            $candidate = trim((string) ($value ?? ''));
+            if ($this->looksLikeAccountCode($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private function looksLikeAccountCode(string $value): bool
+    {
+        return preg_match('/^\d+(?:\.\d+){1,8}$/', $value) === 1;
     }
 
     private function field(array|Collection $row, array $headers, array $names): ?string
