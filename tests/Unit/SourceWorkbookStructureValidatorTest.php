@@ -3,7 +3,6 @@
 namespace Tests\Unit;
 
 use App\Services\SourceWorkbookStructureValidator;
-use App\Services\SourceWorkbookStructureValidator;
 use Illuminate\Support\Collection;
 use PHPUnit\Framework\TestCase;
 
