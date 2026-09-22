@@ -60,6 +60,18 @@ Artisan::command('rekon:dry-run-sources
                 $result['rolled_back'] ? 'YES' : 'NO'
             ));
 
+            foreach ($result['quality']['errors'] ?? [] as $error) {
+                $this->error('    ERROR: ' . $error);
+            }
+
+            foreach ($result['quality']['warnings'] ?? [] as $warning) {
+                $this->warn('    WARNING: ' . $warning);
+            }
+
+            if ($result['document_type'] === 'ledger' && ($result['quality']['stats']['ledger_facts_without_account'] ?? 0) > 0) {
+                $this->warn('    Source columns: ' . implode(' | ', $result['source_columns'] ?? []));
+            }
+
             foreach (array_slice($result['sample_facts'], 0, 3) as $fact) {
                 $this->line(sprintf(
                     '    %s=%s | value=%s | account=%s | period=%s',
