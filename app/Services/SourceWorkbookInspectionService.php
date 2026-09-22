@@ -150,7 +150,7 @@ class SourceWorkbookInspectionService
     /**
      * @return array{parser:?string,readiness:string,warnings:array<int,string>}
      */
-    private function validation(string $documentType, float $confidence): array
+    public function validation(string $documentType, float $confidence): array
     {
         $parsers = [
             'expenditure_reconciliation' => ExpenditureReconciliationParser::class,
