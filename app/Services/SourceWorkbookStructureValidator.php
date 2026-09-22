@@ -90,9 +90,12 @@ class SourceWorkbookStructureValidator
     private function containsAny(Collection $rows, array $targets): bool
     {
         $labels = $this->labels($rows);
-        foreach ($targets as $target) {
-            if ($labels->contains($target)) {
-                return true;
+
+        foreach ($labels as $label) {
+            foreach ($targets as $target) {
+                if ($label === $target || str_contains($label, $target)) {
+                    return true;
+                }
             }
         }
 
