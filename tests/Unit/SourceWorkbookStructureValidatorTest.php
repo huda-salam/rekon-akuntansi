@@ -17,7 +17,7 @@ class SourceWorkbookStructureValidatorTest extends TestCase
             ]),
         ]);
 
-        $result = new SourceWorkbookStructureValidator()->validate('financial_statement', $sheets);
+        $result = (new SourceWorkbookStructureValidator())->validate('financial_statement', $sheets);
 
         $this->assertTrue($result['valid']);
         $this->assertSame([], $result['missing']);
@@ -32,7 +32,7 @@ class SourceWorkbookStructureValidatorTest extends TestCase
             ]),
         ]);
 
-        $result = new SourceWorkbookStructureValidator()->validate('financial_statement', $sheets);
+        $result = (new SourceWorkbookStructureValidator())->validate('financial_statement', $sheets);
 
         $this->assertTrue($result['valid']);
         $this->assertSame([], $result['missing']);
@@ -46,7 +46,7 @@ class SourceWorkbookStructureValidatorTest extends TestCase
             ]),
         ]);
 
-        $result = new SourceWorkbookStructureValidator()->validate('financial_statement', $sheets);
+        $result = (new SourceWorkbookStructureValidator())->validate('financial_statement', $sheets);
 
         $this->assertTrue($result['valid']);
         $this->assertSame([], $result['missing']);
@@ -60,7 +60,7 @@ class SourceWorkbookStructureValidatorTest extends TestCase
             ]),
         ]);
 
-        $result = new SourceWorkbookStructureValidator()->validate('blud', $sheets);
+        $result = (new SourceWorkbookStructureValidator())->validate('blud', $sheets);
 
         $this->assertTrue($result['valid']);
     }
@@ -73,7 +73,7 @@ class SourceWorkbookStructureValidatorTest extends TestCase
             ]),
         ]);
 
-        $result = new SourceWorkbookStructureValidator()->validate('ledger', $sheets);
+        $result = (new SourceWorkbookStructureValidator())->validate('ledger', $sheets);
 
         $this->assertFalse($result['valid']);
         $this->assertContains('ledger header', $result['missing']);
@@ -87,7 +87,7 @@ class SourceWorkbookStructureValidatorTest extends TestCase
             ]),
         ]);
 
-        $result = new SourceWorkbookStructureValidator()->validate('non_rkud_transfer', $sheets);
+        $result = (new SourceWorkbookStructureValidator())->validate('non_rkud_transfer', $sheets);
 
         $this->assertTrue($result['valid']);
     }
