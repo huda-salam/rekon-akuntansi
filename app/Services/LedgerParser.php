@@ -143,6 +143,18 @@ class LedgerParser implements SourceWorkbookParser
             }
         }
 
+        // These ledger exports store the account code and account name in the
+        // Uraian column as: "<kode akun> - <uraian akun>".
+        $uraian = $this->field($row, $headers, ['uraian', 'account description', 'description']);
+        if ($uraian !== null) {
+            $parts = preg_split('/\s+-\s+/', $uraian, 2);
+            $candidate = trim($parts[0] ?? '');
+
+            if ($this->looksLikeAccountCode($candidate)) {
+                return $candidate;
+            }
+        }
+
         // Some exported ledgers lose the exact header label. As a safe
         // fallback, recover only values matching dotted numeric account-code
         // notation; dates, amounts and document numbers do not match this shape.
