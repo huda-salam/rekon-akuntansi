@@ -12,6 +12,7 @@ class SourceWorkbookInspectionService
 {
     public function __construct(
         private readonly SourceDocumentDetector $detector,
+        private readonly SourceWorkbookStructureValidator $structureValidator,
     ) {}
 
     /**
@@ -94,7 +95,7 @@ class SourceWorkbookInspectionService
         }
 
         $detection = $this->detector->detect($sheets, $file->getFilename());
-        $validation = $this->validation($detection['type'], (float) $detection['confidence']);
+        $validation = $this->validation($detection['type'], (float) $detection['confidence'], $sheets);
         $profile = $this->buildStructureProfile($sheets);
 
         return [
@@ -148,9 +149,10 @@ class SourceWorkbookInspectionService
     }
 
     /**
+     * @param Collection<string, Collection<int, array<int, mixed>>> $sheets
      * @return array{parser:?string,readiness:string,warnings:array<int,string>}
      */
-    public function validation(string $documentType, float $confidence): array
+    public function validation(string $documentType, float $confidence, ?Collection $sheets = null): array
     {
         $parsers = [
             'expenditure_reconciliation' => ExpenditureReconciliationParser::class,
@@ -180,9 +182,23 @@ class SourceWorkbookInspectionService
             $warnings[] = 'Belum ada parser eksplisit untuk document type ini; import belum siap.';
         }
 
+        if ($sheets !== null) {
+            $structure = $this->structureValidator->validate($documentType, $sheets);
+
+            if (! $structure['valid']) {
+                $warnings[] = 'Struktur minimum sumber belum terpenuhi: ' . implode(', ', $structure['missing']) . '.';
+            }
+        } else {
+            $structure = ['valid' => true, 'missing' => [], 'evidence' => []];
+        }
+
         return [
             'parser' => $parser,
-            'readiness' => $parser !== null && $confidence >= 0.8 ? 'READY' : 'REVIEW',
+            'readiness' => $parser !== null
+                && $confidence >= 0.8
+                && $structure['valid']
+                ? 'READY'
+                : 'REVIEW',
             'warnings' => $warnings,
         ];
     }
