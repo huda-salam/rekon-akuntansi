@@ -24,10 +24,9 @@ class NormalizedWorkbookParser implements SourceWorkbookParser
         }
 
         $records = 0;
-        $this->setDocumentFilename($document->original_filename);
 
         foreach ($sheets as $sheetName => $rows) {
-            if (! $this->shouldParseSheet($sheetName, $rows, $document->document_type)) {
+            if (! $this->shouldParseSheet($sheetName, $rows, $document->document_type, $document->original_filename)) {
                 continue;
             }
 
@@ -58,14 +57,7 @@ class NormalizedWorkbookParser implements SourceWorkbookParser
         return $records;
     }
 
-    private string $documentFilename = '';
-
-    public function setDocumentFilename(string $filename): void
-    {
-        $this->documentFilename = $filename;
-    }
-
-    private function shouldParseSheet(string $sheetName, Collection $rows, string $type): bool
+    private function shouldParseSheet(string $sheetName, Collection $rows, string $type, string $filename): bool
     {
         $name = mb_strtolower(trim($sheetName));
 
@@ -81,15 +73,15 @@ class NormalizedWorkbookParser implements SourceWorkbookParser
         }
 
         if ($type === 'non_rkud_transfer') {
-            if (str_contains(mb_strtolower($this->documentFilename ?? ''), 'dana desa')) {
+            if (str_contains(mb_strtolower($filename), 'dana desa')) {
                 return $name === 'data dd';
             }
 
-            if (str_contains(mb_strtolower($this->documentFilename ?? ''), 'bok')) {
+            if (str_contains(mb_strtolower($filename), 'bok')) {
                 return $name === 'bok';
             }
 
-            if (str_contains(mb_strtolower($this->documentFilename ?? ''), 'bosp')) {
+            if (str_contains(mb_strtolower($filename), 'bosp')) {
                 return $name === 'bosp';
             }
 
