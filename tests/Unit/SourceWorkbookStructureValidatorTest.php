@@ -22,6 +22,35 @@ class SourceWorkbookStructureValidatorTest extends TestCase
         $this->assertSame([], $result['missing']);
     }
 
+    public function test_it_validates_lpe_without_account_code_column(): void
+    {
+        $sheets = new Collection([
+            'Kertas Kerja LPE - 2026' => new Collection([
+                ['uraian', 'dinas pendidikan', 'dinas kesehatan'],
+                ['ekuitas awal', 0, 0],
+            ]),
+        ]);
+
+        $result = app(SourceWorkbookStructureValidator::class)->validate('financial_statement', $sheets);
+
+        $this->assertTrue($result['valid']);
+        $this->assertSame([], $result['missing']);
+    }
+
+    public function test_it_validates_lra_program_with_generic_code_column(): void
+    {
+        $sheets = new Collection([
+            'Sheet1' => new Collection([
+                ['kode', 'uraian urusan, organisasi, program, kegiatan dan sub kegiatan', 'kelompok belanja', 'operasi', 'modal', 'anggaran'],
+            ]),
+        ]);
+
+        $result = app(SourceWorkbookStructureValidator::class)->validate('financial_statement', $sheets);
+
+        $this->assertTrue($result['valid']);
+        $this->assertSame([], $result['missing']);
+    }
+
     public function test_it_validates_blud_structure(): void
     {
         $sheets = new Collection([
