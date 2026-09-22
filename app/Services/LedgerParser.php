@@ -42,6 +42,23 @@ class LedgerParser implements SourceWorkbookParser
                 $accountCode = $currentAccountCode;
                 $dateValue = $this->fieldValue($row, $headers, ['tanggal', 'tgl', 'date']);
                 $factDate = $this->date($dateValue);
+
+                // Blank-date rows are commonly footers/subtotals outside the
+                // ledger table. Do not turn those rows into financial facts.
+                if ($dateValue === null) {
+                    continue;
+                }
+
+                // A populated date that cannot be normalized is a source-data
+                // error and must be explicit rather than silently losing period.
+                if ($factDate === null) {
+                    throw new \InvalidArgumentException(sprintf(
+                        'Tanggal ledger tidak dapat diparse pada sheet "%s", baris %d.',
+                        (string) $sheetName,
+                        $rowIndex + 1,
+                    ));
+                }
+
                 $date = $factDate;
                 $documentNumber = $this->field($row, $headers, ['nomor', 'no', 'nomor bukti', 'referensi', 'no jurnal']);
 
