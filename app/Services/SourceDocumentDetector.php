@@ -44,15 +44,8 @@ class SourceDocumentDetector
             ->values();
 
         // Strong structural markers must take precedence over filename guesses.
-        if ($names->contains('tabel sp2bp') || $this->hasBludMarkers($sheets)) {
-            return [
-                'type' => 'blud',
-                'category' => 'NON_RKUD',
-                'confidence' => 0.98,
-                'evidence' => array_merge($evidence, ['BLUD structural markers']),
-            ];
-        }
-
+        // Check Dana Desa first because these workbooks also carry generic
+        // BLUD/BOK/BOSP template sheets.
         if ($names->contains('data dd') && $this->hasDanaDesaMarkers($sheets)) {
             return [
                 'type' => 'non_rkud_transfer',
@@ -68,6 +61,15 @@ class SourceDocumentDetector
                 'category' => 'NON_RKUD',
                 'confidence' => 0.95,
                 'evidence' => array_merge($evidence, ['sheet: Tabel SP2BP']),
+            ];
+        }
+
+        if ($this->hasBludMarkers($sheets)) {
+            return [
+                'type' => 'blud',
+                'category' => 'NON_RKUD',
+                'confidence' => 0.98,
+                'evidence' => array_merge($evidence, ['BLUD structural markers']),
             ];
         }
 
@@ -190,14 +192,19 @@ class SourceDocumentDetector
 
     private function hasBludMarkers(Collection $sheets): bool
     {
-        foreach ($sheets as $rows) {
+        foreach ($sheets as $sheetName => $rows) {
+            $name = mb_strtolower(trim((string) $sheetName));
             $text = $this->flattenText($this->normalizeSheet($rows)->take(20));
 
             if (
-                str_contains($text, 'nomor sp3bp')
+                (str_contains($name, 'blud') || $name === 'tabel sp2bp')
+                && str_contains($text, 'nomor sp3bp')
                 && str_contains($text, 'nomor sp2bp')
                 && str_contains($text, 'saldo awal')
-                && str_contains($text, 'belanja pegawai blud')
+                && (
+                    str_contains($text, 'belanja pegawai blud')
+                    || $name === 'tabel sp2bp'
+                )
             ) {
                 return true;
             }
