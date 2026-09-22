@@ -123,7 +123,8 @@ class NormalizedWorkbookParser implements SourceWorkbookParser
         $patterns = [
             'saldo', 'pendapatan', 'belanja', 'pembiayaan', 'anggaran',
             'realisasi', 'jumlah', 'nilai', 'nominal', 'penerimaan',
-            'pengeluaran', 'transfer', 'beban',
+            'pengeluaran', 'transfer', 'beban', 'debit', 'kredit', 'credit',
+            'balance',
         ];
 
         foreach ($headers as $header) {
