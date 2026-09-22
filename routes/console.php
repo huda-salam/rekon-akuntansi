@@ -49,6 +49,7 @@ Artisan::command('rekon:dry-run-sources
                 ->dryRun($file, $year, $resolvedUserId);
 
             $results[] = $result;
+            $qualityStatus = $result['quality']['valid'] ? 'PASS' : 'FAIL';
 
             $this->line(sprintf(
                 '  %s type=%s records=%d facts=%d rollback=%s',
