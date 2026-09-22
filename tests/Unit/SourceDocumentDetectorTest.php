@@ -3,7 +3,6 @@
 namespace Tests\Unit;
 
 use App\Services\SourceDocumentDetector;
-use App\Services\SourceDocumentDetector;
 use Illuminate\Support\Collection;
 use PHPUnit\Framework\TestCase;
 
