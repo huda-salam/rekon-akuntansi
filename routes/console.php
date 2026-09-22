@@ -95,6 +95,8 @@ Artisan::command('rekon:dry-run-sources
             ['Transactions rolled back', collect($results)->every(fn (array $item) => $item['rolled_back'] === true) ? 'YES' : 'NO'],
             ['Source records', (int) collect($results)->sum('source_records')],
             ['Financial facts', (int) collect($results)->sum('financial_facts')],
+            ['Quality PASS', collect($results)->where('quality.valid', true)->count()],
+            ['Quality FAIL', collect($results)->where('quality.valid', false)->count()],
         ]
     );
 
