@@ -233,6 +233,15 @@ class SourceWorkbookImportService
                 ])
                 ->toArray();
 
+            $sampleSourceRecord = SourceRecord::query()
+                ->where('source_document_id', $document->id)
+                ->orderBy('id')
+                ->first();
+
+            $sourceColumns = $sampleSourceRecord
+                ? array_keys($sampleSourceRecord->payload ?? [])
+                : [];
+
             DB::rollBack();
 
             return [
@@ -246,6 +255,7 @@ class SourceWorkbookImportService
                 'financial_facts' => $factCount,
                 'quality' => $quality,
                 'sample_facts' => $sampleFacts,
+                'source_columns' => array_values($sourceColumns),
                 'rolled_back' => true,
                 'temporary_user_created' => $temporaryUserCreated,
             ];
