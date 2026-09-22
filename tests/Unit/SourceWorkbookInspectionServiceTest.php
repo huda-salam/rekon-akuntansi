@@ -41,6 +41,9 @@ class SourceWorkbookInspectionServiceTest extends TestCase
             $this->assertSame(1, $report['sheets']);
             $this->assertGreaterThanOrEqual(3, $report['source_rows']);
             $this->assertGreaterThan(0, $report['numeric_cells']);
+            $this->assertSame('READY', $report['readiness']);
+            $this->assertSame(\App\Services\ExpenditureReconciliationParser::class, $report['parser']);
+            $this->assertSame([], $report['warnings']);
 
             $this->assertDatabaseCount('source_documents', 0);
             $this->assertDatabaseCount('source_records', 0);
