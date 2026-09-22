@@ -38,24 +38,39 @@ class SourceWorkbookInspectionService
         foreach ($spreadsheet->getWorksheetIterator() as $worksheet) {
             $rows = collect();
             $sheetNumericCells = 0;
+            $nonEmptyRows = 0;
+            $rowCount = 0;
 
-            foreach ($worksheet->toArray(null, true, true, false) as $row) {
-                $values = array_values($row);
-                $rows->push($values);
+            foreach ($worksheet->getRowIterator() as $row) {
+                $rowCount++;
+                $values = [];
 
-                foreach ($values as $value) {
+                $cellIterator = $row->getCellIterator();
+                $cellIterator->setIterateOnlyExistingCells(true);
+
+                foreach ($cellIterator as $cell) {
+                    $value = $cell->getValue();
+                    $values[] = $value;
+
                     if (is_int($value) || is_float($value) || (is_string($value) && is_numeric(trim($value)))) {
                         $sheetNumericCells++;
                     }
                 }
-            }
 
-            $rowCount = $rows->count();
-            $nonEmptyRows = $rows->filter(
-                fn (array $row) => collect($row)->contains(
+                $hasValue = collect($values)->contains(
                     fn ($value) => trim((string) ($value ?? '')) !== ''
-                )
-            )->count();
+                );
+
+                if ($hasValue) {
+                    $nonEmptyRows++;
+                }
+
+                // The detector only needs the first 20 rows. Do not retain
+                // the entire workbook in memory for large legacy .xls files.
+                if ($rows->count() < 20) {
+                    $rows->push($values);
+                }
+            }
 
             $sheets->put($worksheet->getTitle(), $rows);
             $sheetStats[] = [
