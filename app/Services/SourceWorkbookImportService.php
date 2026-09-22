@@ -146,12 +146,6 @@ class SourceWorkbookImportService
     {
         $accountingYear = AccountingYear::query()->where('year', $year)->first();
 
-        if (! $accountingYear) {
-            throw ValidationException::withMessages([
-                'year' => "Tahun anggaran {$year} belum tersedia.",
-            ]);
-        }
-
         if ($month !== null && ($month < 1 || $month > 12)) {
             throw ValidationException::withMessages([
                 'month' => 'Bulan harus berada pada rentang 1 sampai 12.',
@@ -179,6 +173,13 @@ class SourceWorkbookImportService
         DB::beginTransaction();
 
         try {
+            // A dry-run must be self-contained. Create missing master data only
+            // inside the transaction so it is rolled back with the test data.
+            $accountingYear ??= AccountingYear::create([
+                'year' => $year,
+                'is_active' => true,
+            ]);
+
             $temporaryUserCreated = false;
             $dryRunUserId = $userId > 0 ? $userId : (int) (User::query()->value('id') ?? 0);
 
