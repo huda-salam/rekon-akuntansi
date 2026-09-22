@@ -18,8 +18,11 @@ class SourceWorkbookStructureValidator
                     && $this->containsAny($rows, ['debit', 'kredit']),
             ],
             'financial_statement' => [
-                'account code' => fn (Collection $rows) => $this->containsAny($rows, ['kode rekening', 'kode akun']),
                 'description' => fn (Collection $rows) => $this->containsAny($rows, ['uraian', 'nama rekening', 'rekening']),
+                'financial value columns' => fn (Collection $rows) => $this->containsAny(
+                    $rows,
+                    ['kode rekening', 'kode akun', 'kode', '2026', '2025', 'anggaran', 'realisasi', 'saldo', 'jumlah', 'konsolidasi']
+                ),
             ],
             'revenue_reconciliation' => [
                 'month columns' => fn (Collection $rows) => $this->containsAnyMonth($rows),
