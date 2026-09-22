@@ -41,12 +41,14 @@ Artisan::command('rekon:inspect-sources
             $file['sheets'],
             $file['source_rows'],
             $file['numeric_cells'],
+            $file['readiness'],
+            $file['parser'] ?? '-',
         ],
         $report['files']
     );
 
     $this->table(
-        ['File', 'Type', 'Category', 'Confidence', 'Sheets', 'Rows', 'Numeric'],
+        ['File', 'Type', 'Category', 'Confidence', 'Sheets', 'Rows', 'Numeric', 'Readiness', 'Parser'],
         $rows
     );
 
