@@ -70,6 +70,7 @@ class SourceWorkbookInspectionService
         }
 
         $detection = $this->detector->detect($sheets, $file->getFilename());
+        $validation = $this->validation($detection['type'], (float) $detection['confidence']);
 
         return [
             'filename' => $file->getFilename(),
@@ -82,7 +83,50 @@ class SourceWorkbookInspectionService
             'source_category' => $detection['category'],
             'confidence' => $detection['confidence'],
             'evidence' => $detection['evidence'],
+            'parser' => $validation['parser'],
+            'readiness' => $validation['readiness'],
+            'warnings' => $validation['warnings'],
             'sheet_stats' => $sheetStats,
+        ];
+    }
+
+    /**
+     * @return array{parser:?string,readiness:string,warnings:array<int,string>}
+     */
+    private function validation(string $documentType, float $confidence): array
+    {
+        $parsers = [
+            'expenditure_reconciliation' => ExpenditureReconciliationParser::class,
+            'revenue_reconciliation' => RevenueReconciliationParser::class,
+            'ledger' => LedgerParser::class,
+            'financial_statement' => FinancialStatementParser::class,
+            'blud' => NormalizedWorkbookParser::class,
+            'non_rkud_transfer' => NormalizedWorkbookParser::class,
+        ];
+
+        $parser = $parsers[$documentType] ?? null;
+        $warnings = [];
+
+        if ($documentType === 'unknown') {
+            return [
+                'parser' => null,
+                'readiness' => 'BLOCKED',
+                'warnings' => ['Document type tidak dikenali; workbook tidak boleh diimpor otomatis.'],
+            ];
+        }
+
+        if ($confidence < 0.8) {
+            $warnings[] = 'Confidence detector di bawah 0.80; validasi struktur sumber diperlukan sebelum import.';
+        }
+
+        if ($parser === null) {
+            $warnings[] = 'Belum ada parser eksplisit untuk document type ini; import belum siap.';
+        }
+
+        return [
+            'parser' => $parser,
+            'readiness' => $parser !== null && $confidence >= 0.8 ? 'READY' : 'REVIEW',
+            'warnings' => $warnings,
         ];
     }
 
