@@ -8,6 +8,7 @@ use App\Models\Skpd;
 use App\Models\SourceDocument;
 use App\Models\SourceRecord;
 use Illuminate\Support\Collection;
+use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 
 class LedgerParser implements SourceWorkbookParser
 {
@@ -39,7 +40,9 @@ class LedgerParser implements SourceWorkbookParser
                 }
 
                 $accountCode = $currentAccountCode;
-                $date = $this->field($row, $headers, ['tanggal', 'tgl', 'date']);
+                $dateValue = $this->fieldValue($row, $headers, ['tanggal', 'tgl', 'date']);
+                $factDate = $this->date($dateValue);
+                $date = $factDate;
                 $documentNumber = $this->field($row, $headers, ['nomor', 'no', 'nomor bukti', 'referensi', 'no jurnal']);
 
                 $record = SourceRecord::create([
@@ -51,14 +54,16 @@ class LedgerParser implements SourceWorkbookParser
                 ]);
 
                 foreach ($this->amountFields($row, $headers) as $item) {
-                    $factMonth = $month ?? $this->monthFromDate($date);
+                    // Ledger period is always derived from the transaction date.
+                    // The optional import month must never override source data.
+                    $factMonth = $factDate ? (int) substr($factDate, 5, 2) : null;
                     FinancialFact::create([
                         'source_document_id' => $document->id,
                         'source_record_id' => $record->id,
                         'accounting_year_id' => $yearId,
                         'skpd_id' => $this->resolveSkpd($document)?->id,
-                        'fact_date' => $this->date($date),
-                        'period' => $factMonth ? sprintf('%04d-%02d', $year, $factMonth) : (string) $year,
+                        'fact_date' => $factDate,
+                        'period' => $factDate ? substr($factDate, 0, 7) : (string) $year,
                         'month' => $factMonth,
                         'source_type' => 'ledger',
                         'transaction_type' => $item['metric'] === 'debit' ? 'DEBIT' : ($item['metric'] === 'credit' ? 'CREDIT' : 'BALANCE'),
@@ -181,12 +186,27 @@ class LedgerParser implements SourceWorkbookParser
 
     private function field(array|Collection $row, array $headers, array $names): ?string
     {
+        $value = $this->fieldValue($row, $headers, $names);
+
+        if ($value === null) return null;
+
+        $text = trim((string) $value);
+
+        return $text !== '' ? $text : null;
+    }
+
+    private function fieldValue(array|Collection $row, array $headers, array $names): mixed
+    {
         foreach ($headers as $index => $header) {
             if (in_array(mb_strtolower(trim($header)), $names, true)) {
-                $value = trim((string) ($row[$index] ?? ''));
-                if ($value !== '') return $value;
+                $value = $row[$index] ?? null;
+
+                if ($value !== null && trim((string) $value) !== '') {
+                    return $value;
+                }
             }
         }
+
         return null;
     }
 
@@ -204,20 +224,46 @@ class LedgerParser implements SourceWorkbookParser
         return $headers;
     }
 
-    private function date(?string $value): ?string
+    private function date(mixed $value): ?string
     {
-        if (! $value) return null;
-        foreach (['d/m/Y', 'd-m-Y', 'Y-m-d', 'm/d/Y'] as $format) {
-            $parsed = \DateTimeImmutable::createFromFormat($format, $value);
-            if ($parsed && $parsed->format($format) === $value) return $parsed->format('Y-m-d');
-        }
-        return null;
-    }
+        if ($value === null || $value === '') return null;
 
-    private function monthFromDate(?string $value): ?int
-    {
-        $date = $this->date($value);
-        return $date ? (int) substr($date, 5, 2) : null;
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format('Y-m-d');
+        }
+
+        // PhpSpreadsheet may expose an Excel date as its numeric serial.
+        if (is_int($value) || is_float($value) || (is_string($value) && preg_match('/^\d+(?:\.\d+)?$/', trim($value)))) {
+            $serial = (float) $value;
+
+            if ($serial >= 20000 && $serial <= 80000) {
+                try {
+                    return ExcelDate::excelToDateTimeObject($serial)->format('Y-m-d');
+                } catch (\Throwable) {
+                    return null;
+                }
+            }
+        }
+
+        $text = trim((string) $value);
+        if ($text === '') return null;
+
+        foreach (['d/m/Y', 'd-m-Y', 'Y-m-d', 'Y/m/d', 'm/d/Y'] as $format) {
+            $parsed = \DateTimeImmutable::createFromFormat('!' . $format, $text);
+            if ($parsed && $parsed->format($format) === $text) {
+                return $parsed->format('Y-m-d');
+            }
+        }
+
+        $timestamp = strtotime($text);
+        if ($timestamp !== false) {
+            $year = (int) date('Y', $timestamp);
+            if ($year >= 2000 && $year <= 2100) {
+                return date('Y-m-d', $timestamp);
+            }
+        }
+
+        return null;
     }
 
     private function number(mixed $value): ?float
