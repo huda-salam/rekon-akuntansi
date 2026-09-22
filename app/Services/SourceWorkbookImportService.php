@@ -23,6 +23,7 @@ class SourceWorkbookImportService
         private readonly RevenueReconciliationParser $revenueParser,
         private readonly FinancialStatementParser $financialStatementParser,
         private readonly LedgerParser $ledgerParser,
+        private readonly SourceWorkbookInspectionService $inspectionService,
     ) {}
 
     public function execute(
@@ -60,9 +61,14 @@ class SourceWorkbookImportService
         $sheets = $this->readSheets($spreadsheet);
         $detection = $this->detector->detect($sheets, $file->getClientOriginalName());
 
-        if ($detection['type'] === 'unknown') {
+        $validation = $this->inspectionService->validation($detection['type'], (float) $detection['confidence']);
+
+        if ($validation['readiness'] !== 'READY') {
+            $message = $validation['warnings'][0]
+                ?? 'Workbook belum lolos source parser readiness gate.';
+
             throw ValidationException::withMessages([
-                'file' => 'Jenis workbook belum didukung atau strukturnya tidak dikenali.',
+                'file' => $message,
             ]);
         }
 
@@ -205,6 +211,10 @@ class SourceWorkbookImportService
 
         if (str_starts_with($name, 'lra-') || str_starts_with($name, 'neraca-') || str_starts_with($name, 'lpe_') || str_starts_with($name, 'laporan-operasional-')) {
             return 'official_report';
+        }
+
+        if (str_starts_with($name, 'lra-program-')) {
+            return 'supporting_schedule';
         }
 
         return 'financial_statement_unknown';
