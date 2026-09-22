@@ -45,4 +45,15 @@ class LedgerParserTest extends TestCase
         $this->assertNull($method->invoke($parser, 'not-a-date'));
     }
 
+    public function test_it_identifies_ledger_summary_row_as_footer(): void
+    {
+        $parser = new LedgerParser();
+        $method = new \ReflectionMethod($parser, 'isFooterRow');
+        $method->setAccessible(true);
+
+        $this->assertTrue($method->invoke($parser, ['JUMLAH', null, null, null, null, 100, 0, 100]));
+        $this->assertTrue($method->invoke($parser, ['Grand Total', null]));
+        $this->assertFalse($method->invoke($parser, ['07/09/2026', '5.1.01.01.001.00001 - Belanja']));
+    }
+
 }
