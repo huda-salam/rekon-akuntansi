@@ -61,7 +61,7 @@ class SourceWorkbookImportService
         $sheets = $this->readSheets($spreadsheet);
         $detection = $this->detector->detect($sheets, $file->getClientOriginalName());
 
-        $validation = $this->inspectionService->validation($detection['type'], (float) $detection['confidence']);
+        $validation = $this->inspectionService->validation($detection['type'], (float) $detection['confidence'], $sheets);
 
         if ($validation['readiness'] !== 'READY') {
             $message = $validation['warnings'][0]
