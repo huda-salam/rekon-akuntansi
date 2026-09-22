@@ -59,6 +59,36 @@ Artisan::command('rekon:inspect-sources
         $rows
     );
 
+
+    $needsReview = array_values(array_filter(
+        $report['files'],
+        fn (array $file) => in_array($file['readiness'] ?? null, ['REVIEW', 'BLOCKED'], true)
+    ));
+
+    if ($needsReview !== []) {
+        $this->newLine();
+        $this->warn('Structure review candidates');
+
+        foreach ($needsReview as $file) {
+            $this->line(sprintf(
+                '  %s [%s] %s',
+                $file['filename'],
+                $file['readiness'],
+                implode('; ', $file['evidence'] ?? [])
+            ));
+
+            foreach ($file['structure_profile'] ?? [] as $sheet) {
+                $labels = array_slice($sheet['labels'] ?? [], 0, 12);
+                if ($labels === []) {
+                    continue;
+                }
+
+                $this->line('    Sheet: ' . $sheet['name']);
+                $this->line('      Labels: ' . implode(' | ', $labels));
+            }
+        }
+    }
+
     if ($json !== null) {
         $directory = dirname($json);
 
