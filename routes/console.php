@@ -18,14 +18,7 @@ Artisan::command('rekon:dry-run-sources
         return 1;
     }
 
-    $resolvedUserId = $userId !== null
-        ? (int) $userId
-        : (int) (\App\Models\User::query()->value('id') ?? 0);
-
-    if ($resolvedUserId <= 0) {
-        $this->error('Tidak ada user yang dapat digunakan untuk dry-run. Gunakan --user-id=<id>.');
-        return 1;
-    }
+    $resolvedUserId = $userId !== null ? (int) $userId : 0;
 
     $files = [];
     $iterator = new \RecursiveIteratorIterator(
