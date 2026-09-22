@@ -13,7 +13,7 @@ class NormalizedWorkbookParser implements SourceWorkbookParser
 {
     public function supports(string $type): bool
     {
-        return in_array($type, ['revenue_reconciliation', 'financial_statement', 'ledger', 'non_rkud_transfer'], true);
+        return in_array($type, ['revenue_reconciliation', 'financial_statement', 'ledger', 'blud', 'non_rkud_transfer'], true);
     }
 
     public function parse(Collection $sheets, SourceDocument $document, int $year, ?int $month = null): int
