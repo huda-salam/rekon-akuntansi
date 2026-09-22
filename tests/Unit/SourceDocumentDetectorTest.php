@@ -3,6 +3,7 @@
 namespace Tests\Unit;
 
 use App\Services\SourceDocumentDetector;
+use App\Services\SourceDocumentDetector;
 use Illuminate\Support\Collection;
 use PHPUnit\Framework\TestCase;
 
@@ -17,7 +18,7 @@ class SourceDocumentDetectorTest extends TestCase
             ]),
         ]);
 
-        $result = app(SourceDocumentDetector::class)->detect($sheets);
+        $result = new SourceDocumentDetector()->detect($sheets);
 
         $this->assertSame('expenditure_reconciliation', $result['type']);
         $this->assertSame('RKUD', $result['category']);
@@ -35,7 +36,7 @@ class SourceDocumentDetectorTest extends TestCase
             ]),
         ]);
 
-        $result = app(SourceDocumentDetector::class)->detect($sheets);
+        $result = new SourceDocumentDetector()->detect($sheets);
 
         $this->assertSame('financial_statement', $result['type']);
         $this->assertSame('ACCOUNTING', $result['category']);
@@ -49,7 +50,7 @@ class SourceDocumentDetectorTest extends TestCase
             ]),
         ]);
 
-        $result = app(SourceDocumentDetector::class)->detect($sheets);
+        $result = new SourceDocumentDetector()->detect($sheets);
 
         $this->assertSame('unknown', $result['type']);
         $this->assertSame(0.0, $result['confidence']);
@@ -63,7 +64,7 @@ class SourceDocumentDetectorTest extends TestCase
             ]),
         ]);
 
-        $result = app(SourceDocumentDetector::class)->detect($sheets, 'kertas-kerja-lra.xlsx');
+        $result = new SourceDocumentDetector()->detect($sheets, 'kertas-kerja-lra.xlsx');
 
         $this->assertSame('financial_statement', $result['type']);
         $this->assertSame('ACCOUNTING', $result['category']);
@@ -78,7 +79,7 @@ class SourceDocumentDetectorTest extends TestCase
             ]),
         ]);
 
-        $result = app(SourceDocumentDetector::class)->detect($sheets, 'BLUD RSKK.xlsx');
+        $result = new SourceDocumentDetector()->detect($sheets, 'BLUD RSKK.xlsx');
 
         $this->assertSame('blud', $result['type']);
         $this->assertSame('NON_RKUD', $result['category']);
@@ -93,7 +94,7 @@ class SourceDocumentDetectorTest extends TestCase
             ]),
         ]);
 
-        $result = app(SourceDocumentDetector::class)->detect($sheets, 'Dana Desa.xlsx');
+        $result = new SourceDocumentDetector()->detect($sheets, 'Dana Desa.xlsx');
 
         $this->assertSame('non_rkud_transfer', $result['type']);
         $this->assertSame('NON_RKUD', $result['category']);
@@ -117,7 +118,7 @@ class SourceDocumentDetectorTest extends TestCase
             ]),
         ]);
 
-        $result = app(SourceDocumentDetector::class)->detect($sheets, 'Dana Desa.xlsx');
+        $result = new SourceDocumentDetector()->detect($sheets, 'Dana Desa.xlsx');
 
         $this->assertSame('non_rkud_transfer', $result['type']);
         $this->assertSame('NON_RKUD', $result['category']);
