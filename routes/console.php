@@ -15,7 +15,7 @@ Artisan::command('rekon:dry-run-sources
     {--json= : Optional output JSON file path}', function (string $path, int $year, ?string $userId = null, ?string $json = null) {
     if (! is_dir($path)) {
         $this->error("Directory tidak ditemukan: {$path}");
-        return self::FAILURE;
+        return 1;
     }
 
     $resolvedUserId = $userId !== null
@@ -126,7 +126,7 @@ Artisan::command('rekon:dry-run-sources
         $this->info("JSON report: {$json}");
     }
 
-    return $failed === [] ? self::SUCCESS : self::FAILURE;
+    return $failed === [] ? 0 : 1;
 })->purpose('Run source parsers in a database transaction and roll back all changes.');
 
 Artisan::command('rekon:inspect-sources
