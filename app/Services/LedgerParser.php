@@ -35,6 +35,10 @@ class LedgerParser implements SourceWorkbookParser
             foreach ($rows as $rowIndex => $row) {
                 if ($rowIndex <= $headerIndex || $this->empty($row)) continue;
 
+                // Ledger exports place a numeric summary row such as JUMLAH
+                // immediately after the last transaction. It is not a posting.
+                if ($this->isFooterRow($row)) break;
+
                 $rowAccountCode = $this->accountCode($row, $headers);
                 if ($rowAccountCode !== null) {
                     $currentAccountCode = $rowAccountCode;
@@ -313,6 +317,19 @@ class LedgerParser implements SourceWorkbookParser
         if (! is_numeric($text)) return null;
         $number = (float) $text;
         return $negative ? -abs($number) : $number;
+    }
+
+    private function isFooterRow(array|Collection $row): bool
+    {
+        $first = mb_strtolower(trim((string) ($row[0] ?? '')));
+
+        return in_array($first, [
+            'jumlah',
+            'total',
+            'grand total',
+            'subtotal',
+            'sub total',
+        ], true);
     }
 
     private function empty(array|Collection $row): bool
