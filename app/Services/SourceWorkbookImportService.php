@@ -119,6 +119,106 @@ class SourceWorkbookImportService
      * @param array<int, UploadedFile> $files
      * @return array{batch: ImportBatch, imported: array<int, SourceDocument>, failed: array<int, array<string,mixed>>}
      */
+    /**
+     * Execute the full parser pipeline inside a transaction and roll it back.
+     * This validates real source parsing without persisting documents, records,
+     * or financial facts.
+     *
+     * @return array<string,mixed>
+     */
+    public function dryRun(string $path, int $year, int $userId, ?int $month = null): array
+    {
+        $accountingYear = AccountingYear::query()->where('year', $year)->first();
+
+        if (! $accountingYear) {
+            throw ValidationException::withMessages([
+                'year' => "Tahun anggaran {$year} belum tersedia.",
+            ]);
+        }
+
+        if ($month !== null && ($month < 1 || $month > 12)) {
+            throw ValidationException::withMessages([
+                'month' => 'Bulan harus berada pada rentang 1 sampai 12.',
+            ]);
+        }
+
+        if (! is_file($path) || ! in_array(strtolower(pathinfo($path, PATHINFO_EXTENSION)), ['xlsx', 'xls'], true)) {
+            throw new \InvalidArgumentException("File workbook tidak valid: {$path}");
+        }
+
+        $checksum = hash_file('sha256', $path);
+        $reader = IOFactory::createReaderForFile($path);
+        $reader->setReadDataOnly(true);
+        $spreadsheet = $reader->load($path);
+        $sheets = $this->readSheets($spreadsheet);
+        $detection = $this->detector->detect($sheets, basename($path));
+        $validation = $this->inspectionService->validation($detection['type'], (float) $detection['confidence'], $sheets);
+
+        if ($validation['readiness'] !== 'READY') {
+            throw ValidationException::withMessages([
+                'file' => $validation['warnings'][0] ?? 'Workbook belum lolos source readiness gate.',
+            ]);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $document = SourceDocument::create([
+                'accounting_year_id' => $accountingYear->id,
+                'import_batch_id' => null,
+                'uploaded_by' => $userId,
+                'original_filename' => basename($path),
+                'document_type' => $detection['type'],
+                'source_category' => $detection['category'],
+                'mime_type' => mime_content_type($path) ?: 'application/octet-stream',
+                'checksum_sha256' => $checksum,
+                'file_path' => 'dry-run/' . $checksum,
+                'file_size' => filesize($path),
+                'status' => 'DRY_RUN',
+                'metadata' => [
+                    'sheets' => $sheets->keys()->values()->all(),
+                    'detection' => $detection,
+                    'requested_month' => $month,
+                    'report_scope' => $this->reportScope(basename($path), $detection['type']),
+                ],
+                'imported_at' => now(),
+            ]);
+
+            $parsedRows = $this->parse($detection['type'], $sheets, $document, $accountingYear->year, $month);
+            $recordCount = SourceRecord::query()->where('source_document_id', $document->id)->count();
+            $factCount = \App\Models\FinancialFact::query()->where('source_document_id', $document->id)->count();
+
+            $sampleFacts = \App\Models\FinancialFact::query()
+                ->where('source_document_id', $document->id)
+                ->orderBy('id')
+                ->limit(10)
+                ->get([
+                    'source_record_id', 'fact_date', 'period', 'month', 'source_type',
+                    'transaction_type', 'document_number', 'account_code', 'metric',
+                    'value', 'unit',
+                ])
+                ->toArray();
+
+            DB::rollBack();
+
+            return [
+                'filename' => basename($path),
+                'document_type' => $detection['type'],
+                'source_category' => $detection['category'],
+                'confidence' => $detection['confidence'],
+                'readiness' => $validation['readiness'],
+                'parsed_rows' => $parsedRows,
+                'source_records' => $recordCount,
+                'financial_facts' => $factCount,
+                'sample_facts' => $sampleFacts,
+                'rolled_back' => true,
+            ];
+        } catch (Throwable $e) {
+            DB::rollBack();
+            throw $e;
+        }
+    }
+
     public function executeBatch(
         array $files,
         int $year,
