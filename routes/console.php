@@ -84,12 +84,23 @@ Artisan::command('rekon:dry-run-sources
                 ));
             }
         } catch (\Throwable $e) {
+            $message = $e->getMessage();
+            $context = '';
+
+            if (preg_match('/sheet "([^"]+)",? baris (\d+)/iu', $message, $matches) === 1) {
+                $context = sprintf(' [sheet=%s row=%d]', $matches[1], (int) $matches[2]);
+            } elseif (preg_match('/(?:row|baris)\s*[:=]?\s*(\d+)/iu', $message, $matches) === 1) {
+                $context = sprintf(' [row=%d]', (int) $matches[1]);
+            }
+
             $failed[] = [
                 'filename' => basename($file),
-                'message' => $e->getMessage(),
+                'message' => $message,
                 'exception' => get_class($e),
+                'context' => $context,
             ];
-            $this->error('  ERROR: ' . $e->getMessage());
+
+            $this->error('  ERROR' . $context . ': ' . $message);
         }
     }
 
@@ -113,7 +124,8 @@ Artisan::command('rekon:dry-run-sources
         $this->warn('Dry-run failures');
 
         foreach ($failed as $item) {
-            $this->line("  {$item['filename']}: {$item['message']}");
+            $context = $item['context'] ?? '';
+            $this->line("  {$item['filename']}{$context}: {$item['message']}");
         }
     }
 
