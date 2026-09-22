@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Support\Collection;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Reader\IReadFilter;
 use SplFileInfo;
 use Throwable;
 
@@ -28,6 +29,18 @@ class SourceWorkbookInspectionService
 
         $reader = IOFactory::createReaderForFile($path);
         $reader->setReadDataOnly(true);
+
+        // Inspection/classification only needs the header area. Loading an
+        // entire legacy XLS can consume hundreds of MB and may terminate PHP
+        // before our exception handler can report anything. Limit the reader
+        // to the first 20 rows on every sheet.
+        $reader->setReadFilter(new class implements IReadFilter {
+            public function readCell($column, $row, $worksheetName = ''): bool
+            {
+                return $row <= 20;
+            }
+        });
+
         $spreadsheet = $reader->load($path);
 
         $sheets = new Collection();
@@ -65,11 +78,7 @@ class SourceWorkbookInspectionService
                     $nonEmptyRows++;
                 }
 
-                // The detector only needs the first 20 rows. Do not retain
-                // the entire workbook in memory for large legacy .xls files.
-                if ($rows->count() < 20) {
-                    $rows->push($values);
-                }
+                $rows->push($values);
             }
 
             $sheets->put($worksheet->getTitle(), $rows);
