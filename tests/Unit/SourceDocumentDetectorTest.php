@@ -100,4 +100,28 @@ class SourceDocumentDetectorTest extends TestCase
         $this->assertSame(0.98, $result['confidence']);
     }
 
+    public function test_dana_desa_is_not_misclassified_by_embedded_blud_template_sheet(): void
+    {
+        $sheets = new Collection([
+            'BLUD' => new Collection([
+                ['no', 'nomor sp3bp', 'tanggal sp3bp', 'skpd', 'nama blu', 'nama kuasa bud', 'nomor', 'nomor_lengkap', 'tanggal', 'tahun anggaran', 'saldo awal', 'pendapatan'],
+            ]),
+            'BOK' => new Collection([
+                ['no', 'nomor sp2b', 'tanggal sp2b', 'skpd', 'nama blud', 'nama kuasa bud'],
+            ]),
+            'BOSP' => new Collection([
+                ['no', 'nomor sp2b', 'tanggal sp2b', 'skpd', 'kegiatan', 'nama kuasa bud'],
+            ]),
+            'Data DD' => new Collection([
+                ['no', 'nomor sp2d bun', 'tanggal sp2d bun', 'bulan', 'nomor sp2bdd', 'tanggal sp2bdd', 'saldo awal', 'pendapatan', 'belanja', 'saldo akhir'],
+            ]),
+        ]);
+
+        $result = app(SourceDocumentDetector::class)->detect($sheets, 'Dana Desa.xlsx');
+
+        $this->assertSame('non_rkud_transfer', $result['type']);
+        $this->assertSame('NON_RKUD', $result['category']);
+    }
+
+
 }
