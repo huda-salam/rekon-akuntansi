@@ -43,6 +43,25 @@ class SourceDocumentDetector
             ->map(fn ($value) => mb_strtolower(trim((string) $value)))
             ->values();
 
+        // Strong structural markers must take precedence over filename guesses.
+        if ($names->contains('tabel sp2bp') || $this->hasBludMarkers($sheets)) {
+            return [
+                'type' => 'blud',
+                'category' => 'NON_RKUD',
+                'confidence' => 0.98,
+                'evidence' => array_merge($evidence, ['BLUD structural markers']),
+            ];
+        }
+
+        if ($names->contains('data dd') && $this->hasDanaDesaMarkers($sheets)) {
+            return [
+                'type' => 'non_rkud_transfer',
+                'category' => 'NON_RKUD',
+                'confidence' => 0.98,
+                'evidence' => array_merge($evidence, ['Dana Desa: Data DD + SP2D BUN/SP2BDD markers']),
+            ];
+        }
+
         if ($names->contains('tabel sp2bp')) {
             return [
                 'type' => 'blud',
@@ -89,8 +108,9 @@ class SourceDocumentDetector
         }
 
         $filenameText = mb_strtolower((string) $filename);
+        $filenameNormalized = str_replace(['_', '-'], ' ', $filenameText);
 
-        if (str_contains($filenameText, 'buku besar') || str_contains($filenameText, 'buku_jurnal')) {
+        if (str_contains($filenameNormalized, 'buku besar') || str_contains($filenameNormalized, 'buku jurnal')) {
             return [
                 'type' => 'ledger',
                 'category' => 'ACCOUNTING',
@@ -99,7 +119,7 @@ class SourceDocumentDetector
             ];
         }
 
-        if (str_contains($filenameText, 'rekonsiliasi pendapatan')) {
+        if (str_contains($filenameNormalized, 'rekonsiliasi pendapatan')) {
             return [
                 'type' => 'revenue_reconciliation',
                 'category' => 'RKUD',
@@ -108,7 +128,7 @@ class SourceDocumentDetector
             ];
         }
 
-        if (str_contains($filenameText, 'rekonsiliasi pengeluaran')) {
+        if (str_contains($filenameNormalized, 'rekonsiliasi pengeluaran')) {
             return [
                 'type' => 'expenditure_reconciliation',
                 'category' => 'RKUD',
@@ -117,17 +137,31 @@ class SourceDocumentDetector
             ];
         }
 
-        if (str_contains($filenameText, 'kertas kerja')
-            || str_contains($filenameText, 'lra-')
-            || str_contains($filenameText, 'neraca')
-            || str_contains($filenameText, 'laporan operasional')
-            || str_contains($filenameText, 'lpe_')
+        if (
+            (str_contains($filenameNormalized, 'kertas kerja') &&
+                (str_contains($filenameNormalized, ' lra')
+                    || str_contains($filenameNormalized, ' lo')
+                    || str_contains($filenameNormalized, ' lpe')
+                    || str_contains($filenameNormalized, ' neraca')))
+            || str_contains($filenameNormalized, 'lra ')
+            || str_contains($filenameNormalized, 'neraca ')
+            || str_contains($filenameNormalized, 'laporan operasional')
+            || str_contains($filenameNormalized, 'lpe ')
         ) {
             return [
                 'type' => 'financial_statement',
                 'category' => 'ACCOUNTING',
-                'confidence' => 0.7,
+                'confidence' => 0.95,
                 'evidence' => array_merge($evidence, ['filename: financial statement pattern']),
+            ];
+        }
+
+        if (str_contains($filenameNormalized, 'lra program')) {
+            return [
+                'type' => 'financial_statement',
+                'category' => 'ACCOUNTING',
+                'confidence' => 0.85,
+                'evidence' => array_merge($evidence, ['filename: LRA program supporting schedule']),
             ];
         }
 
@@ -152,6 +186,41 @@ class SourceDocumentDetector
             'confidence' => 0.0,
             'evidence' => $evidence,
         ];
+    }
+
+    private function hasBludMarkers(Collection $sheets): bool
+    {
+        foreach ($sheets as $rows) {
+            $text = $this->flattenText($this->normalizeSheet($rows)->take(20));
+
+            if (
+                str_contains($text, 'nomor sp3bp')
+                && str_contains($text, 'nomor sp2bp')
+                && str_contains($text, 'saldo awal')
+                && str_contains($text, 'belanja pegawai blud')
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function hasDanaDesaMarkers(Collection $sheets): bool
+    {
+        foreach ($sheets as $rows) {
+            $text = $this->flattenText($this->normalizeSheet($rows)->take(20));
+
+            if (
+                str_contains($text, 'nomor sp2d bun')
+                && str_contains($text, 'nomor sp2bdd')
+                && str_contains($text, 'saldo akhir')
+            ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function normalizeSheet(Collection $rows): Collection
