@@ -21,7 +21,7 @@ class SourceFactQualityGate
             ->where('source_document_id', $document->id)
             ->get([
                 'id', 'source_record_id', 'source_type', 'transaction_type',
-                'account_code', 'metric', 'value', 'fact_date', 'lineage',
+                'account_code', 'metric', 'value', 'fact_date', 'month', 'period', 'lineage',
             ]);
 
         $errors = [];
@@ -99,7 +99,7 @@ class SourceFactQualityGate
             $periodMismatches = $ledgerFacts->filter(
                 fn (FinancialFact $fact) =>
                     $fact->fact_date !== null
-                    && (string) $fact->period !== substr((string) $fact->fact_date, 0, 7)
+                    && (string) $fact->period !== $this->factPeriod($fact->fact_date)
             );
 
             if ($periodMismatches->isNotEmpty()) {
@@ -112,7 +112,7 @@ class SourceFactQualityGate
             $monthMismatches = $ledgerFacts->filter(
                 fn (FinancialFact $fact) =>
                     $fact->fact_date !== null
-                    && (int) $fact->month !== (int) substr((string) $fact->fact_date, 5, 2)
+                    && (int) $fact->month !== $this->factMonth($fact->fact_date)
             );
 
             if ($monthMismatches->isNotEmpty()) {
@@ -152,6 +152,24 @@ class SourceFactQualityGate
                     : 0,
             ],
         ];
+    }
+
+    private function factPeriod(mixed $factDate): string
+    {
+        if ($factDate instanceof DateTimeInterface) {
+            return $factDate->format('Y-m');
+        }
+
+        return substr((string) $factDate, 0, 7);
+    }
+
+    private function factMonth(mixed $factDate): int
+    {
+        if ($factDate instanceof DateTimeInterface) {
+            return (int) $factDate->format('m');
+        }
+
+        return (int) substr((string) $factDate, 5, 2);
     }
 
     private function hasLineageInputs(mixed $lineage): bool
