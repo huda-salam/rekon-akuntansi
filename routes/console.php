@@ -24,7 +24,7 @@ Artisan::command('rekon:dry-run-sources
 
     if ($resolvedUserId <= 0) {
         $this->error('Tidak ada user yang dapat digunakan untuk dry-run. Gunakan --user-id=<id>.');
-        return self::FAILURE;
+        return 1;
     }
 
     $files = [];
@@ -57,8 +57,9 @@ Artisan::command('rekon:dry-run-sources
 
             $results[] = $result;
 
-            $this->info(sprintf(
-                '  OK type=%s records=%d facts=%d rollback=%s',
+            $this->line(sprintf(
+                '  %s type=%s records=%d facts=%d rollback=%s',
+                $qualityStatus,
                 $result['document_type'],
                 $result['source_records'],
                 $result['financial_facts'],
@@ -128,7 +129,9 @@ Artisan::command('rekon:dry-run-sources
         $this->info("JSON report: {$json}");
     }
 
-    return $failed === [] ? 0 : 1;
+    $qualityFailed = collect($results)->where('quality.valid', false)->count();
+
+    return ($failed === [] && $qualityFailed === 0) ? 0 : 1;
 })->purpose('Run source parsers in a database transaction and roll back all changes.');
 
 Artisan::command('rekon:inspect-sources
