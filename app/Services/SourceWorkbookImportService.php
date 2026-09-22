@@ -24,6 +24,7 @@ class SourceWorkbookImportService
         private readonly FinancialStatementParser $financialStatementParser,
         private readonly LedgerParser $ledgerParser,
         private readonly SourceWorkbookInspectionService $inspectionService,
+        private readonly SourceFactQualityGate $qualityGate,
     ) {}
 
     public function execute(
@@ -105,7 +106,21 @@ class SourceWorkbookImportService
                 ]);
 
                 $count = $this->parse($detection['type'], $sheets, $document, $accountingYear->year, $month);
-                $document->update(['row_count' => $count]);
+
+                $quality = $this->qualityGate->evaluate($document);
+
+                if (! $quality['valid']) {
+                    throw ValidationException::withMessages([
+                        'file' => $quality['errors'],
+                    ]);
+                }
+
+                $document->update([
+                    'row_count' => $count,
+                    'metadata' => array_merge($document->metadata ?? [], [
+                        'quality_gate' => $quality,
+                    ]),
+                ]);
 
                 return $document->fresh();
             });
@@ -185,6 +200,7 @@ class SourceWorkbookImportService
             ]);
 
             $parsedRows = $this->parse($detection['type'], $sheets, $document, $accountingYear->year, $month);
+            $quality = $this->qualityGate->evaluate($document);
             $recordCount = SourceRecord::query()->where('source_document_id', $document->id)->count();
             $factCount = \App\Models\FinancialFact::query()->where('source_document_id', $document->id)->count();
 
@@ -210,6 +226,7 @@ class SourceWorkbookImportService
                 'parsed_rows' => $parsedRows,
                 'source_records' => $recordCount,
                 'financial_facts' => $factCount,
+                'quality' => $quality,
                 'sample_facts' => $sampleFacts,
                 'rolled_back' => true,
             ];
