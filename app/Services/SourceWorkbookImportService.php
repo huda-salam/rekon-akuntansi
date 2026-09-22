@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Models\AccountingYear;
+use App\Models\FinancialFact;
 use App\Models\ImportBatch;
 use App\Models\SourceDocument;
+use App\Models\SourceRecord;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
@@ -218,9 +220,9 @@ class SourceWorkbookImportService
             $parsedRows = $this->parse($detection['type'], $sheets, $document, $accountingYear->year, $month);
             $quality = $this->qualityGate->evaluate($document);
             $recordCount = SourceRecord::query()->where('source_document_id', $document->id)->count();
-            $factCount = \App\Models\FinancialFact::query()->where('source_document_id', $document->id)->count();
+            $factCount = FinancialFact::query()->where('source_document_id', $document->id)->count();
 
-            $sampleFacts = \App\Models\FinancialFact::query()
+            $sampleFacts = FinancialFact::query()
                 ->where('source_document_id', $document->id)
                 ->orderBy('id')
                 ->limit(10)
