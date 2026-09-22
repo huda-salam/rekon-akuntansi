@@ -28,11 +28,17 @@ class LedgerParser implements SourceWorkbookParser
             if ($headerIndex === null) continue;
 
             $headers = $this->headers($rows->get($headerIndex));
+            $currentAccountCode = null;
 
             foreach ($rows as $rowIndex => $row) {
                 if ($rowIndex <= $headerIndex || $this->empty($row)) continue;
 
-                $accountCode = $this->accountCode($row, $headers);
+                $rowAccountCode = $this->accountCode($row, $headers);
+                if ($rowAccountCode !== null) {
+                    $currentAccountCode = $rowAccountCode;
+                }
+
+                $accountCode = $currentAccountCode;
                 $date = $this->field($row, $headers, ['tanggal', 'tgl', 'date']);
                 $documentNumber = $this->field($row, $headers, ['nomor', 'no', 'nomor bukti', 'referensi', 'no jurnal']);
 
