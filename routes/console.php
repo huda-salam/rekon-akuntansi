@@ -74,11 +74,12 @@ Artisan::command('rekon:dry-run-sources
 
             foreach (array_slice($result['sample_facts'], 0, 3) as $fact) {
                 $this->line(sprintf(
-                    '    %s=%s | value=%s | account=%s | period=%s',
+                    '    %s=%s | value=%s | account=%s | date=%s | period=%s',
                     $fact['metric'],
                     $fact['transaction_type'],
                     $fact['value'],
                     $fact['account_code'] ?? '-',
+                    $fact['fact_date'] ?? '-',
                     $fact['period'] ?? '-'
                 ));
             }
