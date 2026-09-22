@@ -88,7 +88,7 @@ class SourceWorkbookImportService
                 $document = SourceDocument::create([
                     'accounting_year_id' => $accountingYear->id,
                     'import_batch_id' => $batch?->id,
-                    'uploaded_by' => $dryRunUserId,
+                    'uploaded_by' => $userId,
                     'original_filename' => $file->getClientOriginalName(),
                     'document_type' => $detection['type'],
                     'source_category' => $detection['category'],
@@ -196,7 +196,7 @@ class SourceWorkbookImportService
             $document = SourceDocument::create([
                 'accounting_year_id' => $accountingYear->id,
                 'import_batch_id' => null,
-                'uploaded_by' => $userId,
+                'uploaded_by' => $dryRunUserId,
                 'original_filename' => basename($path),
                 'document_type' => $detection['type'],
                 'source_category' => $detection['category'],
