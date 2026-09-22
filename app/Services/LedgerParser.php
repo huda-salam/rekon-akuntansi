@@ -30,6 +30,7 @@ class LedgerParser implements SourceWorkbookParser
 
             $headers = $this->headers($rows->get($headerIndex));
             $currentAccountCode = null;
+            $startedData = false;
 
             foreach ($rows as $rowIndex => $row) {
                 if ($rowIndex <= $headerIndex || $this->empty($row)) continue;
@@ -46,6 +47,7 @@ class LedgerParser implements SourceWorkbookParser
                 // Blank-date rows are commonly footers/subtotals outside the
                 // ledger table. Do not turn those rows into financial facts.
                 if ($dateValue === null) {
+                    if ($startedData) break;
                     continue;
                 }
 
@@ -59,8 +61,12 @@ class LedgerParser implements SourceWorkbookParser
                     ));
                 }
 
+                $startedData = true;
                 $date = $factDate;
                 $documentNumber = $this->field($row, $headers, ['nomor', 'no', 'nomor bukti', 'referensi', 'no jurnal']);
+                $amountFields = $this->amountFields($row, $headers);
+
+                if ($amountFields === []) continue;
 
                 $record = SourceRecord::create([
                     'source_document_id' => $document->id,
@@ -70,7 +76,7 @@ class LedgerParser implements SourceWorkbookParser
                     'payload' => $this->payload($row, $headers),
                 ]);
 
-                foreach ($this->amountFields($row, $headers) as $item) {
+                foreach ($amountFields as $item) {
                     // Ledger period is always derived from the transaction date.
                     // The optional import month must never override source data.
                     $factMonth = $factDate ? (int) substr($factDate, 5, 2) : null;
