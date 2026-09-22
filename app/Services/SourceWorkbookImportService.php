@@ -111,7 +111,7 @@ class SourceWorkbookImportService
 
                 if (! $quality['valid']) {
                     throw ValidationException::withMessages([
-                        'file' => $quality['errors'],
+                        'file' => implode(' ', $quality['errors']),
                     ]);
                 }
 
