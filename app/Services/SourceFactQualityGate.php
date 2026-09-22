@@ -88,7 +88,7 @@ class SourceFactQualityGate
             )->count();
 
             if ($missingAccounts > 0) {
-                $warnings[] = sprintf('%d fact ledger tidak memiliki account_code.', $missingAccounts);
+                $errors[] = sprintf('%d fact ledger tidak memiliki account_code.', $missingAccounts);
             }
 
             $missingDates = $ledgerFacts->whereNull('fact_date')->count();
