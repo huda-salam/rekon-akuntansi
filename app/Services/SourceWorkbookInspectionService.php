@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Support\Collection;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Reader\IReadFilter;
 use SplFileInfo;
 use Throwable;
 
@@ -11,6 +12,7 @@ class SourceWorkbookInspectionService
 {
     public function __construct(
         private readonly SourceDocumentDetector $detector,
+        private readonly SourceWorkbookStructureValidator $structureValidator,
     ) {}
 
     /**
@@ -28,6 +30,18 @@ class SourceWorkbookInspectionService
 
         $reader = IOFactory::createReaderForFile($path);
         $reader->setReadDataOnly(true);
+
+        // Inspection/classification only needs the header area. Loading an
+        // entire legacy XLS can consume hundreds of MB and may terminate PHP
+        // before our exception handler can report anything. Limit the reader
+        // to the first 20 rows on every sheet.
+        $reader->setReadFilter(new class implements IReadFilter {
+            public function readCell($column, $row, $worksheetName = ''): bool
+            {
+                return $row <= 20;
+            }
+        });
+
         $spreadsheet = $reader->load($path);
 
         $sheets = new Collection();
@@ -38,24 +52,35 @@ class SourceWorkbookInspectionService
         foreach ($spreadsheet->getWorksheetIterator() as $worksheet) {
             $rows = collect();
             $sheetNumericCells = 0;
+            $nonEmptyRows = 0;
+            $rowCount = 0;
 
-            foreach ($worksheet->toArray(null, true, true, false) as $row) {
-                $values = array_values($row);
-                $rows->push($values);
+            foreach ($worksheet->getRowIterator() as $row) {
+                $rowCount++;
+                $values = [];
 
-                foreach ($values as $value) {
+                $cellIterator = $row->getCellIterator();
+                $cellIterator->setIterateOnlyExistingCells(true);
+
+                foreach ($cellIterator as $cell) {
+                    $value = $cell->getValue();
+                    $values[] = $value;
+
                     if (is_int($value) || is_float($value) || (is_string($value) && is_numeric(trim($value)))) {
                         $sheetNumericCells++;
                     }
                 }
-            }
 
-            $rowCount = $rows->count();
-            $nonEmptyRows = $rows->filter(
-                fn (array $row) => collect($row)->contains(
+                $hasValue = collect($values)->contains(
                     fn ($value) => trim((string) ($value ?? '')) !== ''
-                )
-            )->count();
+                );
+
+                if ($hasValue) {
+                    $nonEmptyRows++;
+                }
+
+                $rows->push($values);
+            }
 
             $sheets->put($worksheet->getTitle(), $rows);
             $sheetStats[] = [
@@ -70,6 +95,8 @@ class SourceWorkbookInspectionService
         }
 
         $detection = $this->detector->detect($sheets, $file->getFilename());
+        $validation = $this->validation($detection['type'], (float) $detection['confidence'], $sheets);
+        $profile = $this->buildStructureProfile($sheets);
 
         return [
             'filename' => $file->getFilename(),
@@ -82,14 +109,105 @@ class SourceWorkbookInspectionService
             'source_category' => $detection['category'],
             'confidence' => $detection['confidence'],
             'evidence' => $detection['evidence'],
+            'parser' => $validation['parser'],
+            'readiness' => $validation['readiness'],
+            'warnings' => $validation['warnings'],
+            'structure_profile' => $profile,
             'sheet_stats' => $sheetStats,
         ];
     }
 
     /**
+     * Build a compact structural profile from the header area already loaded
+     * during inspection. This is diagnostic metadata only; it is never persisted.
+     *
+     * @param Collection<string, Collection<int, array<int, mixed>>> $sheets
+     * @return array<int,array{name:string,non_empty_rows:int,labels:array<int,string>}>
+     */
+    private function buildStructureProfile(Collection $sheets): array
+    {
+        return $sheets->map(function (Collection $rows, string $sheetName): array {
+            $labels = $rows
+                ->take(20)
+                ->flatten()
+                ->map(fn ($value) => trim((string) ($value ?? '')))
+                ->filter(fn (string $value) => $value !== '')
+                ->map(fn (string $value) => mb_strtolower($value))
+                ->unique()
+                ->values();
+
+            return [
+                'name' => $sheetName,
+                'non_empty_rows' => $rows->filter(
+                    fn (array $row) => collect($row)->contains(
+                        fn ($value) => trim((string) ($value ?? '')) !== ''
+                    )
+                )->count(),
+                'labels' => $labels->take(40)->all(),
+            ];
+        })->values()->all();
+    }
+
+    /**
+     * @param Collection<string, Collection<int, array<int, mixed>>> $sheets
+     * @return array{parser:?string,readiness:string,warnings:array<int,string>}
+     */
+    public function validation(string $documentType, float $confidence, ?Collection $sheets = null): array
+    {
+        $parsers = [
+            'expenditure_reconciliation' => ExpenditureReconciliationParser::class,
+            'revenue_reconciliation' => RevenueReconciliationParser::class,
+            'ledger' => LedgerParser::class,
+            'financial_statement' => FinancialStatementParser::class,
+            'blud' => NormalizedWorkbookParser::class,
+            'non_rkud_transfer' => NormalizedWorkbookParser::class,
+        ];
+
+        $parser = $parsers[$documentType] ?? null;
+        $warnings = [];
+
+        if ($documentType === 'unknown') {
+            return [
+                'parser' => null,
+                'readiness' => 'BLOCKED',
+                'warnings' => ['Document type tidak dikenali; workbook tidak boleh diimpor otomatis.'],
+            ];
+        }
+
+        if ($confidence < 0.8) {
+            $warnings[] = 'Confidence detector di bawah 0.80; validasi struktur sumber diperlukan sebelum import.';
+        }
+
+        if ($parser === null) {
+            $warnings[] = 'Belum ada parser eksplisit untuk document type ini; import belum siap.';
+        }
+
+        if ($sheets !== null) {
+            $structure = $this->structureValidator->validate($documentType, $sheets);
+
+            if (! $structure['valid']) {
+                $warnings[] = 'Struktur minimum sumber belum terpenuhi: ' . implode(', ', $structure['missing']) . '.';
+            }
+        } else {
+            $structure = ['valid' => true, 'missing' => [], 'evidence' => []];
+        }
+
+        return [
+            'parser' => $parser,
+            'readiness' => $parser !== null
+                && $confidence >= 0.8
+                && $structure['valid']
+                ? 'READY'
+                : 'REVIEW',
+            'warnings' => $warnings,
+        ];
+    }
+
+    /**
+     * @param  callable(string):void|null  $onFile
      * @return array{files:array<int,array<string,mixed>>,summary:array<string,mixed>}
      */
-    public function inspectDirectory(string $directory): array
+    public function inspectDirectory(string $directory, ?callable $onFile = null): array
     {
         if (! is_dir($directory)) {
             throw new \InvalidArgumentException("Directory tidak ditemukan: {$directory}");
@@ -103,6 +221,10 @@ class SourceWorkbookInspectionService
         foreach ($iterator as $file) {
             if (! $file->isFile() || ! in_array(strtolower($file->getExtension()), ['xlsx', 'xls'], true)) {
                 continue;
+            }
+
+            if ($onFile !== null) {
+                $onFile($file->getPathname());
             }
 
             try {
@@ -119,6 +241,9 @@ class SourceWorkbookInspectionService
                     'source_category' => null,
                     'confidence' => 0.0,
                     'evidence' => [$e->getMessage()],
+                    'parser' => null,
+                    'readiness' => 'BLOCKED',
+                    'warnings' => ['Workbook gagal diinspeksi: ' . $e->getMessage()],
                     'sheet_stats' => [],
                 ];
             }

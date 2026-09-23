@@ -13,7 +13,7 @@ class NormalizedWorkbookParser implements SourceWorkbookParser
 {
     public function supports(string $type): bool
     {
-        return in_array($type, ['revenue_reconciliation', 'financial_statement', 'ledger', 'non_rkud_transfer'], true);
+        return in_array($type, ['revenue_reconciliation', 'financial_statement', 'ledger', 'blud', 'non_rkud_transfer'], true);
     }
 
     public function parse(Collection $sheets, SourceDocument $document, int $year, ?int $month = null): int
@@ -24,9 +24,18 @@ class NormalizedWorkbookParser implements SourceWorkbookParser
         }
 
         $records = 0;
+
         foreach ($sheets as $sheetName => $rows) {
+            if (! $this->shouldParseSheet($sheetName, $rows, $document->document_type, $document->original_filename)) {
+                continue;
+            }
+
             $headerIndex = $this->headerIndex($rows, $document->document_type);
             $headers = $headerIndex !== null ? $this->headers($rows->get($headerIndex)) : [];
+
+            if ($headerIndex === null || ! $this->hasFinancialColumns($headers)) {
+                continue;
+            }
 
             foreach ($rows as $rowIndex => $row) {
                 if ($headerIndex !== null && $rowIndex <= $headerIndex) continue;
@@ -48,6 +57,119 @@ class NormalizedWorkbookParser implements SourceWorkbookParser
         return $records;
     }
 
+    private function shouldParseSheet(string $sheetName, Collection $rows, string $type, string $filename): bool
+    {
+        $name = mb_strtolower(trim($sheetName));
+        $filenameText = mb_strtolower($filename);
+
+        if (str_starts_with($name, 'cetak') || in_array($name, ['data bulan', 'worksheet'], true)) {
+            return false;
+        }
+
+        $text = $this->sheetText($rows);
+
+        if ($type === 'blud') {
+            return $name === 'tabel sp2bp' || (
+                str_starts_with($name, 'blud-')
+                && str_contains($text, 'nomor sp3bp')
+                && str_contains($text, 'nomor sp2bp')
+            );
+        }
+
+        if ($type === 'non_rkud_transfer') {
+            if (str_contains($filenameText, 'dana desa')) {
+                return $name === 'data dd';
+            }
+
+            if (str_contains($filenameText, 'bok')) {
+                return $name === 'bok';
+            }
+
+            if (str_contains($filenameText, 'bosp')) {
+                return $name === 'bosp';
+            }
+
+            if (in_array($name, ['blud', 'bok', 'bosp', 'data dd', 'data bulan'], true)) {
+                return false;
+            }
+
+            return str_contains($text, 'nomor sp2b')
+                || str_contains($text, 'nomor sp2d bun')
+                || str_contains($text, 'nomor sp2bdd')
+                || str_contains($text, 'nomor sp3bp')
+                || $this->hasFinancialColumns($this->headersFromBestRow($rows, $type));
+        }
+
+        return true;
+    }
+
+    private function sheetText(Collection $rows): string
+    {
+        return $rows->take(20)
+            ->flatten()
+            ->map(fn ($value) => mb_strtolower(trim((string) ($value ?? ''))))
+            ->filter()
+            ->implode(' ');
+    }
+
+    private function headersFromBestRow(Collection $rows, string $type): array
+    {
+        $index = $this->headerIndex($rows, $type);
+        return $index === null ? [] : $this->headers($rows->get($index));
+    }
+
+    private function hasFinancialColumns(array $headers): bool
+    {
+        $patterns = [
+            'saldo', 'pendapatan', 'belanja', 'pembiayaan', 'anggaran',
+            'realisasi', 'jumlah', 'nilai', 'nominal', 'penerimaan',
+            'pengeluaran', 'transfer', 'beban', 'debit', 'kredit', 'credit',
+            'balance',
+        ];
+
+        foreach ($headers as $header) {
+            $label = mb_strtolower(trim($header));
+            if (in_array($label, ['no', 'nomor', 'nomor dokumen', 'tahun', 'tanggal', 'tgl', 'bulan'], true)) {
+                continue;
+            }
+
+            foreach ($patterns as $pattern) {
+                if (str_contains($label, $pattern)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private function isFinancialColumn(string $label): bool
+    {
+        $label = mb_strtolower(trim($label));
+
+        if ($label === '' || in_array($label, [
+            'no', 'nomor', 'nomor dokumen', 'tanggal', 'tgl', 'bulan', 'tahun',
+            'kode', 'kode skpd', 'skpd', 'nama skpd', 'unit kerja',
+            'nama blud', 'nama blu', 'nama kuasa bud', 'kegiatan',
+            'nomor sp2b', 'nomor sp2d bun', 'nomor sp2bdd', 'nomor sp3bp',
+            'nomor sp2bp', 'nomor spb', 'nomor sp2t', 'referensi',
+        ], true)) {
+            return false;
+        }
+
+        foreach ([
+            'saldo', 'pendapatan', 'belanja', 'pembiayaan', 'anggaran',
+            'realisasi', 'jumlah', 'nilai', 'nominal', 'penerimaan',
+            'pengeluaran', 'transfer', 'beban',
+        ] as $pattern) {
+            if (str_contains($label, $pattern)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function headerIndex(Collection $rows, string $type): ?int
     {
         $best = null;
@@ -61,11 +183,13 @@ class NormalizedWorkbookParser implements SourceWorkbookParser
                 'revenue_reconciliation' => ['kode', 'kode rekening', 'rekening', 'uraian', 'realisasi', 'pendapatan', 'skpd', 'nama skpd'],
                 'ledger' => ['tanggal', 'kode rekening', 'nama rekening', 'uraian', 'debit', 'kredit', 'saldo', 'referensi'],
                 'financial_statement' => ['kode rekening', 'uraian', 'anggaran', 'realisasi', 'saldo', 'jumlah', 'tahun', 'konsolidasi'],
+                'blud' => ['nomor sp3bp', 'tanggal sp3bp', 'nomor sp2bp', 'tanggal sp2bp', 'saldo awal', 'pendapatan', 'belanja'],
+                'non_rkud_transfer' => ['nomor sp2b', 'tanggal sp2b', 'nomor sp2d bun', 'nomor sp2bdd', 'saldo awal', 'saldo akhir', 'pendapatan', 'belanja'],
                 default => ['kode rekening', 'uraian', 'tanggal', 'jumlah', 'nominal', 'nilai', 'pagu', 'realisasi'],
             };
 
             $score = $labels->intersect($targets)->count();
-            if ($score > $bestScore && $labels->count() >= 2) {
+            if ($score > $bestScore && $score >= 2 && $labels->count() >= 2) {
                 $bestScore = $score;
                 $best = $index;
             }
@@ -97,6 +221,8 @@ class NormalizedWorkbookParser implements SourceWorkbookParser
         $accountCode = $this->accountCode($row, $headers);
 
         foreach ($headers as $index => $header) {
+            if (! $this->isFinancialColumn($header)) continue;
+
             $value = $this->number($row[$index] ?? null);
             if ($value === null) continue;
 
@@ -136,6 +262,7 @@ class NormalizedWorkbookParser implements SourceWorkbookParser
         if ($type === 'ledger') return str_contains($label, 'debit') ? 'DEBIT' : (str_contains($label, 'kredit') ? 'CREDIT' : 'JOURNAL');
         if ($type === 'financial_statement') return 'STATEMENT';
         if ($type === 'revenue_reconciliation') return 'REVENUE_RECON';
+        if ($type === 'blud') return 'BLUD';
         return 'NON_RKUD_TRANSFER';
     }
 

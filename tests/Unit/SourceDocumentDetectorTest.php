@@ -17,7 +17,7 @@ class SourceDocumentDetectorTest extends TestCase
             ]),
         ]);
 
-        $result = app(SourceDocumentDetector::class)->detect($sheets);
+        $result = (new SourceDocumentDetector())->detect($sheets);
 
         $this->assertSame('expenditure_reconciliation', $result['type']);
         $this->assertSame('RKUD', $result['category']);
@@ -35,7 +35,7 @@ class SourceDocumentDetectorTest extends TestCase
             ]),
         ]);
 
-        $result = app(SourceDocumentDetector::class)->detect($sheets);
+        $result = (new SourceDocumentDetector())->detect($sheets);
 
         $this->assertSame('financial_statement', $result['type']);
         $this->assertSame('ACCOUNTING', $result['category']);
@@ -49,9 +49,79 @@ class SourceDocumentDetectorTest extends TestCase
             ]),
         ]);
 
-        $result = app(SourceDocumentDetector::class)->detect($sheets);
+        $result = (new SourceDocumentDetector())->detect($sheets);
 
         $this->assertSame('unknown', $result['type']);
         $this->assertSame(0.0, $result['confidence']);
     }
+
+    public function test_it_detects_working_paper_financial_statements_from_filename(): void
+    {
+        $sheets = new Collection([
+            'Kertas Kerja LRA - 2026' => new Collection([
+                ['kode rekening', 'uraian', 'konsolidasi', 'dinas pendidikan'],
+            ]),
+        ]);
+
+        $result = (new SourceDocumentDetector())->detect($sheets, 'kertas-kerja-lra.xlsx');
+
+        $this->assertSame('financial_statement', $result['type']);
+        $this->assertSame('ACCOUNTING', $result['category']);
+        $this->assertSame(0.95, $result['confidence']);
+    }
+
+    public function test_it_detects_blud_from_internal_sp3bp_sp2bp_markers(): void
+    {
+        $sheets = new Collection([
+            'BLUD-RSKK' => new Collection([
+                ['no', 'nomor sp3bp', 'tanggal sp3bp', 'untuk bulan', 'nama blud', 'nomor sp2bp', 'tanggal sp2bp', 'saldo awal', 'belanja pegawai blud'],
+            ]),
+        ]);
+
+        $result = (new SourceDocumentDetector())->detect($sheets, 'BLUD RSKK.xlsx');
+
+        $this->assertSame('blud', $result['type']);
+        $this->assertSame('NON_RKUD', $result['category']);
+        $this->assertSame(0.98, $result['confidence']);
+    }
+
+    public function test_it_detects_dana_desa_from_data_dd_markers(): void
+    {
+        $sheets = new Collection([
+            'Data DD' => new Collection([
+                ['no', 'nomor sp2d bun', 'tanggal sp2d bun', 'bulan', 'nomor sp2bdd', 'tanggal sp2bdd', 'saldo awal', 'pendapatan', 'belanja', 'saldo akhir'],
+            ]),
+        ]);
+
+        $result = (new SourceDocumentDetector())->detect($sheets, 'Dana Desa.xlsx');
+
+        $this->assertSame('non_rkud_transfer', $result['type']);
+        $this->assertSame('NON_RKUD', $result['category']);
+        $this->assertSame(0.98, $result['confidence']);
+    }
+
+    public function test_dana_desa_is_not_misclassified_by_embedded_blud_template_sheet(): void
+    {
+        $sheets = new Collection([
+            'BLUD' => new Collection([
+                ['no', 'nomor sp3bp', 'tanggal sp3bp', 'skpd', 'nama blu', 'nama kuasa bud', 'nomor', 'nomor_lengkap', 'tanggal', 'tahun anggaran', 'saldo awal', 'pendapatan'],
+            ]),
+            'BOK' => new Collection([
+                ['no', 'nomor sp2b', 'tanggal sp2b', 'skpd', 'nama blud', 'nama kuasa bud'],
+            ]),
+            'BOSP' => new Collection([
+                ['no', 'nomor sp2b', 'tanggal sp2b', 'skpd', 'kegiatan', 'nama kuasa bud'],
+            ]),
+            'Data DD' => new Collection([
+                ['no', 'nomor sp2d bun', 'tanggal sp2d bun', 'bulan', 'nomor sp2bdd', 'tanggal sp2bdd', 'saldo awal', 'pendapatan', 'belanja', 'saldo akhir'],
+            ]),
+        ]);
+
+        $result = (new SourceDocumentDetector())->detect($sheets, 'Dana Desa.xlsx');
+
+        $this->assertSame('non_rkud_transfer', $result['type']);
+        $this->assertSame('NON_RKUD', $result['category']);
+    }
+
+
 }

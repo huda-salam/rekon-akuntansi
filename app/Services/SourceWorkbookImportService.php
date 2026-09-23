@@ -3,8 +3,11 @@
 namespace App\Services;
 
 use App\Models\AccountingYear;
+use App\Models\FinancialFact;
 use App\Models\ImportBatch;
 use App\Models\SourceDocument;
+use App\Models\SourceRecord;
+use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +26,8 @@ class SourceWorkbookImportService
         private readonly RevenueReconciliationParser $revenueParser,
         private readonly FinancialStatementParser $financialStatementParser,
         private readonly LedgerParser $ledgerParser,
+        private readonly SourceWorkbookInspectionService $inspectionService,
+        private readonly SourceFactQualityGate $qualityGate,
     ) {}
 
     public function execute(
@@ -60,9 +65,14 @@ class SourceWorkbookImportService
         $sheets = $this->readSheets($spreadsheet);
         $detection = $this->detector->detect($sheets, $file->getClientOriginalName());
 
-        if ($detection['type'] === 'unknown') {
+        $validation = $this->inspectionService->validation($detection['type'], (float) $detection['confidence'], $sheets);
+
+        if ($validation['readiness'] !== 'READY') {
+            $message = $validation['warnings'][0]
+                ?? 'Workbook belum lolos source parser readiness gate.';
+
             throw ValidationException::withMessages([
-                'file' => 'Jenis workbook belum didukung atau strukturnya tidak dikenali.',
+                'file' => $message,
             ]);
         }
 
@@ -99,7 +109,21 @@ class SourceWorkbookImportService
                 ]);
 
                 $count = $this->parse($detection['type'], $sheets, $document, $accountingYear->year, $month);
-                $document->update(['row_count' => $count]);
+
+                $quality = $this->qualityGate->evaluate($document);
+
+                if (! $quality['valid']) {
+                    throw ValidationException::withMessages([
+                        'file' => implode(' ', $quality['errors']),
+                    ]);
+                }
+
+                $document->update([
+                    'row_count' => $count,
+                    'metadata' => array_merge($document->metadata ?? [], [
+                        'quality_gate' => $quality,
+                    ]),
+                ]);
 
                 return $document->fresh();
             });
@@ -113,6 +137,134 @@ class SourceWorkbookImportService
      * @param array<int, UploadedFile> $files
      * @return array{batch: ImportBatch, imported: array<int, SourceDocument>, failed: array<int, array<string,mixed>>}
      */
+    /**
+     * Execute the full parser pipeline inside a transaction and roll it back.
+     * This validates real source parsing without persisting documents, records,
+     * or financial facts.
+     *
+     * @return array<string,mixed>
+     */
+    public function dryRun(string $path, int $year, int $userId, ?int $month = null): array
+    {
+        $accountingYear = AccountingYear::query()->where('year', $year)->first();
+
+        if ($month !== null && ($month < 1 || $month > 12)) {
+            throw ValidationException::withMessages([
+                'month' => 'Bulan harus berada pada rentang 1 sampai 12.',
+            ]);
+        }
+
+        if (! is_file($path) || ! in_array(strtolower(pathinfo($path, PATHINFO_EXTENSION)), ['xlsx', 'xls'], true)) {
+            throw new \InvalidArgumentException("File workbook tidak valid: {$path}");
+        }
+
+        $checksum = hash_file('sha256', $path);
+        $reader = IOFactory::createReaderForFile($path);
+        $reader->setReadDataOnly(true);
+        $spreadsheet = $reader->load($path);
+        $sheets = $this->readSheets($spreadsheet);
+        $detection = $this->detector->detect($sheets, basename($path));
+        $validation = $this->inspectionService->validation($detection['type'], (float) $detection['confidence'], $sheets);
+
+        if ($validation['readiness'] !== 'READY') {
+            throw ValidationException::withMessages([
+                'file' => $validation['warnings'][0] ?? 'Workbook belum lolos source readiness gate.',
+            ]);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            // A dry-run must be self-contained. Create missing master data only
+            // inside the transaction so it is rolled back with the test data.
+            $accountingYear ??= AccountingYear::create([
+                'year' => $year,
+                'is_active' => true,
+            ]);
+
+            $temporaryUserCreated = false;
+            $dryRunUserId = $userId > 0 ? $userId : (int) (User::query()->value('id') ?? 0);
+
+            if ($dryRunUserId > 0 && ! User::query()->whereKey($dryRunUserId)->exists()) {
+                throw ValidationException::withMessages([
+                    'user-id' => "User id {$dryRunUserId} tidak ditemukan.",
+                ]);
+            }
+
+            if ($dryRunUserId === 0) {
+                $dryRunUserId = User::factory()->admin()->create()->id;
+                $temporaryUserCreated = true;
+            }
+
+            $document = SourceDocument::create([
+                'accounting_year_id' => $accountingYear->id,
+                'import_batch_id' => null,
+                'uploaded_by' => $dryRunUserId,
+                'original_filename' => basename($path),
+                'document_type' => $detection['type'],
+                'source_category' => $detection['category'],
+                'mime_type' => mime_content_type($path) ?: 'application/octet-stream',
+                'checksum_sha256' => $checksum,
+                'file_path' => 'dry-run/' . $checksum,
+                'file_size' => filesize($path),
+                'status' => 'DRY_RUN',
+                'metadata' => [
+                    'sheets' => $sheets->keys()->values()->all(),
+                    'detection' => $detection,
+                    'requested_month' => $month,
+                    'report_scope' => $this->reportScope(basename($path), $detection['type']),
+                ],
+                'imported_at' => now(),
+            ]);
+
+            $parsedRows = $this->parse($detection['type'], $sheets, $document, $accountingYear->year, $month);
+            $quality = $this->qualityGate->evaluate($document);
+            $recordCount = SourceRecord::query()->where('source_document_id', $document->id)->count();
+            $factCount = FinancialFact::query()->where('source_document_id', $document->id)->count();
+
+            $sampleFacts = FinancialFact::query()
+                ->where('source_document_id', $document->id)
+                ->orderBy('id')
+                ->limit(10)
+                ->get([
+                    'source_record_id', 'fact_date', 'period', 'month', 'source_type',
+                    'transaction_type', 'document_number', 'account_code', 'metric',
+                    'value', 'unit',
+                ])
+                ->toArray();
+
+            $sampleSourceRecord = SourceRecord::query()
+                ->where('source_document_id', $document->id)
+                ->orderBy('id')
+                ->first();
+
+            $sourceColumns = $sampleSourceRecord
+                ? array_keys($sampleSourceRecord->payload ?? [])
+                : [];
+
+            DB::rollBack();
+
+            return [
+                'filename' => basename($path),
+                'document_type' => $detection['type'],
+                'source_category' => $detection['category'],
+                'confidence' => $detection['confidence'],
+                'readiness' => $validation['readiness'],
+                'parsed_rows' => $parsedRows,
+                'source_records' => $recordCount,
+                'financial_facts' => $factCount,
+                'quality' => $quality,
+                'sample_facts' => $sampleFacts,
+                'source_columns' => array_values($sourceColumns),
+                'rolled_back' => true,
+                'temporary_user_created' => $temporaryUserCreated,
+            ];
+        } catch (Throwable $e) {
+            DB::rollBack();
+            throw $e;
+        }
+    }
+
     public function executeBatch(
         array $files,
         int $year,
@@ -205,6 +357,10 @@ class SourceWorkbookImportService
 
         if (str_starts_with($name, 'lra-') || str_starts_with($name, 'neraca-') || str_starts_with($name, 'lpe_') || str_starts_with($name, 'laporan-operasional-')) {
             return 'official_report';
+        }
+
+        if (str_starts_with($name, 'lra-program-')) {
+            return 'supporting_schedule';
         }
 
         return 'financial_statement_unknown';

@@ -8,6 +8,7 @@ use App\Models\Skpd;
 use App\Models\SourceDocument;
 use App\Models\SourceRecord;
 use Illuminate\Support\Collection;
+use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 
 class LedgerParser implements SourceWorkbookParser
 {
@@ -28,13 +29,48 @@ class LedgerParser implements SourceWorkbookParser
             if ($headerIndex === null) continue;
 
             $headers = $this->headers($rows->get($headerIndex));
+            $currentAccountCode = null;
+            $startedData = false;
 
             foreach ($rows as $rowIndex => $row) {
                 if ($rowIndex <= $headerIndex || $this->empty($row)) continue;
 
-                $accountCode = $this->field($row, $headers, ['kode rekening', 'kode akun', 'kode']);
-                $date = $this->field($row, $headers, ['tanggal', 'tgl', 'date']);
+                // Ledger exports place a numeric summary row such as JUMLAH
+                // immediately after the last transaction. It is not a posting.
+                if ($this->isFooterRow($row)) break;
+
+                $rowAccountCode = $this->accountCode($row, $headers);
+                if ($rowAccountCode !== null) {
+                    $currentAccountCode = $rowAccountCode;
+                }
+
+                $accountCode = $currentAccountCode;
+                $dateValue = $this->fieldValue($row, $headers, ['tanggal', 'tgl', 'date']);
+                $factDate = $this->date($dateValue);
+
+                // Blank-date rows are commonly footers/subtotals outside the
+                // ledger table. Do not turn those rows into financial facts.
+                if ($dateValue === null) {
+                    if ($startedData) break;
+                    continue;
+                }
+
+                // A populated date that cannot be normalized is a source-data
+                // error and must be explicit rather than silently losing period.
+                if ($factDate === null) {
+                    throw new \InvalidArgumentException(sprintf(
+                        'Tanggal ledger tidak dapat diparse pada sheet "%s", baris %d.',
+                        (string) $sheetName,
+                        $rowIndex + 1,
+                    ));
+                }
+
+                $startedData = true;
+                $date = $factDate;
                 $documentNumber = $this->field($row, $headers, ['nomor', 'no', 'nomor bukti', 'referensi', 'no jurnal']);
+                $amountFields = $this->amountFields($row, $headers);
+
+                if ($amountFields === []) continue;
 
                 $record = SourceRecord::create([
                     'source_document_id' => $document->id,
@@ -44,15 +80,17 @@ class LedgerParser implements SourceWorkbookParser
                     'payload' => $this->payload($row, $headers),
                 ]);
 
-                foreach ($this->amountFields($row, $headers) as $item) {
-                    $factMonth = $month ?? $this->monthFromDate($date);
+                foreach ($amountFields as $item) {
+                    // Ledger period is always derived from the transaction date.
+                    // The optional import month must never override source data.
+                    $factMonth = $factDate ? (int) substr($factDate, 5, 2) : null;
                     FinancialFact::create([
                         'source_document_id' => $document->id,
                         'source_record_id' => $record->id,
                         'accounting_year_id' => $yearId,
                         'skpd_id' => $this->resolveSkpd($document)?->id,
-                        'fact_date' => $this->date($date),
-                        'period' => $factMonth ? sprintf('%04d-%02d', $year, $factMonth) : (string) $year,
+                        'fact_date' => $factDate,
+                        'period' => $factDate ? substr($factDate, 0, 7) : (string) $year,
                         'month' => $factMonth,
                         'source_type' => 'ledger',
                         'transaction_type' => $item['metric'] === 'debit' ? 'DEBIT' : ($item['metric'] === 'credit' ? 'CREDIT' : 'BALANCE'),
@@ -126,14 +164,76 @@ class LedgerParser implements SourceWorkbookParser
         return $result;
     }
 
+    private function accountCode(array|Collection $row, array $headers): ?string
+    {
+        foreach ($headers as $index => $header) {
+            $label = mb_strtolower(trim($header));
+
+            if (
+                in_array($label, ['kode rekening', 'kode akun', 'account code', 'kode'], true)
+                || str_starts_with($label, 'kode rekening ')
+                || str_starts_with($label, 'kode akun ')
+            ) {
+                $value = trim((string) ($row[$index] ?? ''));
+                if ($this->looksLikeAccountCode($value)) {
+                    return $value;
+                }
+            }
+        }
+
+        // These ledger exports store the account code and account name in the
+        // Uraian column as: "<kode akun> - <uraian akun>".
+        $uraian = $this->field($row, $headers, ['uraian', 'account description', 'description']);
+        if ($uraian !== null) {
+            $parts = preg_split('/\s+-\s+/', $uraian, 2);
+            $candidate = trim($parts[0] ?? '');
+
+            if ($this->looksLikeAccountCode($candidate)) {
+                return $candidate;
+            }
+        }
+
+        // Some exported ledgers lose the exact header label. As a safe
+        // fallback, recover only values matching dotted numeric account-code
+        // notation; dates, amounts and document numbers do not match this shape.
+        foreach ($row as $value) {
+            $candidate = trim((string) ($value ?? ''));
+            if ($this->looksLikeAccountCode($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private function looksLikeAccountCode(string $value): bool
+    {
+        return preg_match('/^\d+(?:\.\d+){1,8}$/', $value) === 1;
+    }
+
     private function field(array|Collection $row, array $headers, array $names): ?string
+    {
+        $value = $this->fieldValue($row, $headers, $names);
+
+        if ($value === null) return null;
+
+        $text = trim((string) $value);
+
+        return $text !== '' ? $text : null;
+    }
+
+    private function fieldValue(array|Collection $row, array $headers, array $names): mixed
     {
         foreach ($headers as $index => $header) {
             if (in_array(mb_strtolower(trim($header)), $names, true)) {
-                $value = trim((string) ($row[$index] ?? ''));
-                if ($value !== '') return $value;
+                $value = $row[$index] ?? null;
+
+                if ($value !== null && trim((string) $value) !== '') {
+                    return $value;
+                }
             }
         }
+
         return null;
     }
 
@@ -151,20 +251,46 @@ class LedgerParser implements SourceWorkbookParser
         return $headers;
     }
 
-    private function date(?string $value): ?string
+    private function date(mixed $value): ?string
     {
-        if (! $value) return null;
-        foreach (['d/m/Y', 'd-m-Y', 'Y-m-d', 'm/d/Y'] as $format) {
-            $parsed = \DateTimeImmutable::createFromFormat($format, $value);
-            if ($parsed && $parsed->format($format) === $value) return $parsed->format('Y-m-d');
-        }
-        return null;
-    }
+        if ($value === null || $value === '') return null;
 
-    private function monthFromDate(?string $value): ?int
-    {
-        $date = $this->date($value);
-        return $date ? (int) substr($date, 5, 2) : null;
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format('Y-m-d');
+        }
+
+        // PhpSpreadsheet may expose an Excel date as its numeric serial.
+        if (is_int($value) || is_float($value) || (is_string($value) && preg_match('/^\d+(?:\.\d+)?$/', trim($value)))) {
+            $serial = (float) $value;
+
+            if ($serial >= 20000 && $serial <= 80000) {
+                try {
+                    return ExcelDate::excelToDateTimeObject($serial)->format('Y-m-d');
+                } catch (\Throwable) {
+                    return null;
+                }
+            }
+        }
+
+        $text = trim((string) $value);
+        if ($text === '') return null;
+
+        foreach (['d/m/Y', 'd-m-Y', 'Y-m-d', 'Y/m/d', 'm/d/Y'] as $format) {
+            $parsed = \DateTimeImmutable::createFromFormat('!' . $format, $text);
+            if ($parsed && $parsed->format($format) === $text) {
+                return $parsed->format('Y-m-d');
+            }
+        }
+
+        $timestamp = strtotime($text);
+        if ($timestamp !== false) {
+            $year = (int) date('Y', $timestamp);
+            if ($year >= 2000 && $year <= 2100) {
+                return date('Y-m-d', $timestamp);
+            }
+        }
+
+        return null;
     }
 
     private function number(mixed $value): ?float
@@ -191,6 +317,19 @@ class LedgerParser implements SourceWorkbookParser
         if (! is_numeric($text)) return null;
         $number = (float) $text;
         return $negative ? -abs($number) : $number;
+    }
+
+    private function isFooterRow(array|Collection $row): bool
+    {
+        $first = mb_strtolower(trim((string) ($row[0] ?? '')));
+
+        return in_array($first, [
+            'jumlah',
+            'total',
+            'grand total',
+            'subtotal',
+            'sub total',
+        ], true);
     }
 
     private function empty(array|Collection $row): bool

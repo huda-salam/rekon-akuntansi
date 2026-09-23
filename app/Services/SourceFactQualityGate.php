@@ -1,0 +1,184 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\FinancialFact;
+use App\Models\SourceDocument;
+
+class SourceFactQualityGate
+{
+    /**
+     * @return array{
+     *   valid:bool,
+     *   errors:array<int,string>,
+     *   warnings:array<int,string>,
+     *   stats:array<string,int>
+     * }
+     */
+    public function evaluate(SourceDocument $document): array
+    {
+        $facts = FinancialFact::query()
+            ->where('source_document_id', $document->id)
+            ->get([
+                'id', 'source_record_id', 'source_type', 'transaction_type',
+                'account_code', 'metric', 'value', 'fact_date', 'month', 'period', 'lineage',
+            ]);
+
+        $errors = [];
+        $warnings = [];
+
+        if ($facts->isEmpty()) {
+            $errors[] = 'Parser tidak menghasilkan FinancialFact.';
+        }
+
+        $forbiddenMetricNames = [
+            'no', 'nomor', 'tanggal', 'tgl', 'tahun', 'bulan',
+            'nomor_dokumen', 'nomor_sp2b', 'nomor_sp2d_bun', 'nomor_sp2bdd',
+            'nomor_sp3bp', 'nomor_sp2bp', 'nomor_spb', 'nomor_sp2t',
+        ];
+
+        $metadataFacts = $facts->filter(
+            fn (FinancialFact $fact) => in_array(mb_strtolower(trim($fact->metric)), $forbiddenMetricNames, true)
+        );
+
+        if ($metadataFacts->isNotEmpty()) {
+            $errors[] = sprintf(
+                '%d FinancialFact berasal dari field metadata/non-keuangan.',
+                $metadataFacts->count()
+            );
+        }
+
+        $duplicateMetrics = $facts
+            ->groupBy(fn (FinancialFact $fact) => ($fact->source_record_id ?? 'null') . '|' . $fact->metric)
+            ->filter(fn ($group) => $group->count() > 1);
+
+        if ($duplicateMetrics->isNotEmpty()) {
+            $errors[] = sprintf(
+                '%d kombinasi source_record + metric terduplikasi.',
+                $duplicateMetrics->count()
+            );
+        }
+
+        $derivedWithoutLineage = $facts->filter(
+            fn (FinancialFact $fact) =>
+                strtolower((string) $fact->transaction_type) === 'calculation'
+                && ! $this->hasLineageInputs($fact->lineage)
+        );
+
+        if ($derivedWithoutLineage->isNotEmpty()) {
+            $errors[] = sprintf(
+                '%d derived fact tidak memiliki lineage input.',
+                $derivedWithoutLineage->count()
+            );
+        }
+
+        if ($document->document_type === 'ledger') {
+            $ledgerFacts = $facts->whereIn('metric', ['debit', 'credit', 'balance']);
+
+            if ($ledgerFacts->isEmpty()) {
+                $errors[] = 'Ledger tidak menghasilkan fact debit/kredit/saldo.';
+            } elseif ($ledgerFacts->filter(
+                fn (FinancialFact $fact) => trim((string) ($fact->account_code ?? '')) !== ''
+            )->isEmpty()) {
+                $errors[] = 'Ledger menghasilkan fact tetapi tidak memiliki account_code.';
+            }
+
+            $missingAccounts = $ledgerFacts->filter(
+                fn (FinancialFact $fact) => trim((string) ($fact->account_code ?? '')) === ''
+            )->count();
+
+            if ($missingAccounts > 0) {
+                $errors[] = sprintf('%d fact ledger tidak memiliki account_code.', $missingAccounts);
+            }
+
+            $missingDates = $ledgerFacts->whereNull('fact_date')->count();
+            if ($missingDates > 0) {
+                $errors[] = sprintf('%d fact ledger tidak memiliki tanggal transaksi.', $missingDates);
+            }
+
+            $periodMismatches = $ledgerFacts->filter(
+                fn (FinancialFact $fact) =>
+                    $fact->fact_date !== null
+                    && (string) $fact->period !== $this->factPeriod($fact->fact_date)
+            );
+
+            if ($periodMismatches->isNotEmpty()) {
+                $errors[] = sprintf(
+                    '%d fact ledger memiliki period yang tidak sesuai dengan fact_date.',
+                    $periodMismatches->count()
+                );
+            }
+
+            $monthMismatches = $ledgerFacts->filter(
+                fn (FinancialFact $fact) =>
+                    $fact->fact_date !== null
+                    && (int) $fact->month !== $this->factMonth($fact->fact_date)
+            );
+
+            if ($monthMismatches->isNotEmpty()) {
+                $errors[] = sprintf(
+                    '%d fact ledger memiliki month yang tidak sesuai dengan fact_date.',
+                    $monthMismatches->count()
+                );
+            }
+        }
+
+        if (in_array($document->document_type, ['blud', 'non_rkud_transfer'], true)) {
+            if ($facts->whereIn('metric', [
+                'saldo_awal', 'saldo_akhir', 'pendapatan', 'belanja',
+                'penerimaan', 'pengeluaran', 'pembiayaan',
+            ])->isEmpty()) {
+                $warnings[] = 'Transfer workbook tidak menghasilkan metric keuangan utama yang umum.';
+            }
+        }
+
+        $zeroFacts = $facts->filter(fn (FinancialFact $fact) => (float) $fact->value === 0.0)->count();
+        if ($facts->count() > 0 && $zeroFacts === $facts->count()) {
+            $warnings[] = 'Seluruh FinancialFact bernilai nol.';
+        }
+
+        return [
+            'valid' => $errors === [],
+            'errors' => array_values(array_unique($errors)),
+            'warnings' => array_values(array_unique($warnings)),
+            'stats' => [
+                'financial_facts' => $facts->count(),
+                'zero_value_facts' => $zeroFacts,
+                'derived_facts' => $facts->where('transaction_type', 'calculation')->count(),
+                'ledger_facts_without_account' => $document->document_type === 'ledger'
+                    ? $facts->whereIn('metric', ['debit', 'credit', 'balance'])->filter(
+                        fn (FinancialFact $fact) => trim((string) ($fact->account_code ?? '')) === ''
+                    )->count()
+                    : 0,
+            ],
+        ];
+    }
+
+    private function factPeriod(mixed $factDate): string
+    {
+        if ($factDate instanceof DateTimeInterface) {
+            return $factDate->format('Y-m');
+        }
+
+        return substr((string) $factDate, 0, 7);
+    }
+
+    private function factMonth(mixed $factDate): int
+    {
+        if ($factDate instanceof DateTimeInterface) {
+            return (int) $factDate->format('m');
+        }
+
+        return (int) substr((string) $factDate, 5, 2);
+    }
+
+    private function hasLineageInputs(mixed $lineage): bool
+    {
+        if (! is_array($lineage)) {
+            return false;
+        }
+
+        return ! empty($lineage['input_fact_ids'])
+            || ! empty($lineage['input_metrics']);
+    }
+}
