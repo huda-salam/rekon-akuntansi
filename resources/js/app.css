@@ -221,6 +221,9 @@ nav {
 
 nav button {
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   text-align: left;
   border: 1px solid transparent;
   background: transparent;
@@ -243,6 +246,18 @@ nav .nav-active {
   border-color: #dbeafe;
   font-weight: 800;
 }
+
+.nav-icon {
+  width: 18px;
+  flex: 0 0 18px;
+  display: inline-grid;
+  place-items: center;
+  color: #94a3b8;
+  font-size: 14px;
+  line-height: 1;
+}
+
+nav .nav-active .nav-icon { color: #2563eb; }
 
 nav .nav-active::before {
   content: "";
@@ -330,6 +345,14 @@ nav .nav-active::before {
   color: #166534;
   border-color: #bbf7d0;
   background: #f0fdf4;
+}
+
+.status i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  display: inline-block;
 }
 
 .status.error {
@@ -455,6 +478,83 @@ nav .nav-active::before {
 .stats span {
   color: #94a3b8;
   font-size: 10px;
+}
+
+/* ---------- Quick actions ---------- */
+
+.quick-actions {
+  display: grid;
+  grid-template-columns: 1.2fr repeat(3, minmax(150px, 1fr));
+  gap: 10px;
+  margin: 15px 0;
+}
+
+.quick-actions > div {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 13px 4px 13px 2px;
+}
+
+.quick-actions > div small {
+  color: #64748b;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: .08em;
+}
+
+.quick-actions > div strong {
+  margin: 4px 0 2px;
+  color: #26364a;
+  font-size: 14px;
+}
+
+.quick-actions > div span {
+  color: #94a3b8;
+  font-size: 10px;
+}
+
+.quick-actions button {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 9px;
+  text-align: left;
+  min-height: 67px;
+  border: 1px solid #dfe7f1;
+  background: #fff;
+  border-radius: 12px;
+  padding: 11px;
+}
+
+.quick-actions button:hover {
+  border-color: #bfdbfe;
+  background: #f8fbff;
+}
+
+.quick-actions button b {
+  grid-row: 1 / span 2;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 14px;
+}
+
+.quick-actions button span {
+  color: #334155;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.quick-actions button small {
+  color: #94a3b8;
+  font-size: 9px;
+  margin-top: 2px;
 }
 
 /* ---------- Panels & tables ---------- */
@@ -671,9 +771,12 @@ td span {
   nav { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 
   nav button {
+    justify-content: center;
     text-align: center;
     padding: 9px 7px;
   }
+
+  .nav-icon { display: none; }
 
   nav .nav-active::before {
     left: 12px;
@@ -709,6 +812,12 @@ td span {
   }
 
   .stats { grid-template-columns: 1fr; }
+
+  .quick-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .quick-actions > div { padding-left: 2px; }
 
   .hero { padding: 20px; }
   .hero strong { font-size: 34px; }
